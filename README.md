@@ -4,4 +4,4 @@
 * Aliyana Trisha Harun - ataharun05
 * Craig Zyrus Manuel - craigmanuel
 * Sylar Zvi Villacruz - 
-* Earth Dino - 
+* Earth Luis Diño - 
