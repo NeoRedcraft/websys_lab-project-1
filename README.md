@@ -1,1 +1,7 @@
-# websys_lab-project-1
+# Contributors:
+* Felipe M. Panugan III - NeoRedcraft
+* Edelle Gibben M. Lumabi - edelle-del
+* Aliyana Trisha Harun - ataharun05
+* Craig Zyrus Manuel -
+* Sylar Zvi Villacruz - 
+* Earth Dino - 
