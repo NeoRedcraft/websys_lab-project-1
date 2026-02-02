@@ -4,4 +4,4 @@
 * Aliyana Trisha Harun - ataharun05
 * Craig Zyrus Manuel - craigmanuel
 * Earth Luis Diño - GrudgeTale
-* Sylar Zvi Villacruz - 
+* Sylar Zvi Villacruz - SYZVAL
