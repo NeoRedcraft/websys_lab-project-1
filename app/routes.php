@@ -7,6 +7,7 @@ $router = new Router();
 // ========== Page Routes ==========
 $router->get('/', 'PagesController@home');
 $router->get('/dashboard', 'PagesController@dashboard');
+$router->get('/organizer-dashboard', 'PagesController@organizerDashboard');
 $router->get('/directory', 'PagesController@directory');
 $router->get('/account', 'PagesController@accountSettings');
 

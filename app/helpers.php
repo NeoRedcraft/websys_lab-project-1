@@ -131,8 +131,7 @@ function require_auth()
 function user_has_role($role)
 {
     // Check the session variable you set in AuthController
-    $sessionRole = session_get('role');
-    return $sessionRole === $role;
+    return session_get('role') === $role;
 }
 
 function csrf_token()

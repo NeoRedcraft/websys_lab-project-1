@@ -67,6 +67,8 @@ class PagesController
 
         return view('pages/organizer-dashboard', [
             'user' => get_user(),
+            'bookings' => [], 
+            'stats' => ['pending' => 0, 'accepted' => 0]
         ]);
     }
 

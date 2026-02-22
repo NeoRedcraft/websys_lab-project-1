@@ -85,9 +85,10 @@ class AuthController
             $roleName = null;
             if ($userId) {
                 $role = $this->userModel->getRole($userId);
-                $roleName = $role['name'] ?? null;
+                // Check if your DB column is 'name' or 'role_name'
+                $roleName = $role['role_name'] ?? $role['name'] ?? null; 
+
                 if ($roleName) {
-                    // Store role in session so gatekeepers don't need extra DB calls
                     session_set('role', $roleName);
                 }
             }
@@ -161,6 +162,20 @@ class AuthController
 
             $result = $this->getSupabase()->signUp($email, $password, $metadata);
 
+            if ($result['success']) {
+                $data = $result['data'];
+                $userId = $data['user']['id'];
+
+                // Create the profile in your public table
+                $this->userModel->create(
+                    $userId, 
+                    $email, 
+                    $name, 
+                    3,    // Default 'organizer' role_id
+                    null  // Default org_id
+                );
+            }
+            
             if (!$result['success']) {
                 $this->auditLog->logAuth(null, 'signup_failed', 'auth_error', [
                     'email' => $email,
