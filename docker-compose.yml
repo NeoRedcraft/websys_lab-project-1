@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cardinalstage-web
+    ports:
+      - "8000:80"
+    environment:
+      - APP_NAME=${APP_NAME:-Cardinal Stage}
+      - APP_ENV=${APP_ENV:-development}
+      - APP_URL=${APP_URL:-http://localhost:8000}
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_PUBLIC_ANON_KEY=${SUPABASE_PUBLIC_ANON_KEY}
+      - SUPABASE_SECRET_KEY=${SUPABASE_SECRET_KEY}
+    volumes:
+      # Mount source code for development (comment out for production)
+      - .:/var/www/html
+    restart: unless-stopped
