@@ -6,6 +6,6 @@
 * Earth Luis Diño - GrudgeTale
 * Sylar Zvi Villacruz - SYZVAL
 
-git clone https://github.com/NeoRedcraft/websys_lab-project-1.git
-cd CardinalStage
-composer install
+## HOW TO RUN ATA
+* git clone https://github.com/NeoRedcraft/websys_lab-project-1.git
+* php -S localhost:8000              
