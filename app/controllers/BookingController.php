@@ -316,4 +316,88 @@ class BookingController
 
         return ['organizations' => array_values($filtered)];
     }
+
+    /**
+     * API: Get all organizations for talent directory
+     */
+    public function apiGetDirectoryOrganizations($params = [])
+    {
+        header('Content-Type: application/json');
+        
+        try {
+            $organizations = $this->organizationModel->getAllWithDetails();
+            
+            // Return JSON response
+            echo json_encode([
+                'success' => true,
+                'data' => $organizations
+            ]);
+        } catch (\Exception $e) {
+            http_response_code(500);
+            echo json_encode([
+                'success' => false,
+                'message' => 'Error fetching organizations'
+            ]);
+        }
+        exit;
+    }
+
+    /**
+     * API: Get all events for calendar (from accepted bookings)
+     */
+    public function apiGetCalendarEvents($params = [])
+    {
+        header('Content-Type: application/json');
+        
+        try {
+            $organizations = $this->organizationModel->getAll();
+            $events = [];
+
+            foreach ($organizations as $org) {
+                $bookings = $this->bookingModel->getByOrganization($org['id']);
+                
+                // Only include accepted bookings
+                $acceptedBookings = array_filter($bookings, function($b) {
+                    return $b['status'] === 'accepted';
+                });
+
+                foreach ($acceptedBookings as $booking) {
+                    $events[] = [
+                        'id' => 'booking_' . $booking['id'],
+                        'title' => $booking['event_name'],
+                        'start' => $booking['event_date'] . 'T00:00:00',
+                        'backgroundColor' => '#DC2626', // Red
+                        'borderColor' => '#991B1B',
+                        'extendedProps' => [
+                            'event_name' => $booking['event_name'],
+                            'event_date' => $booking['event_date'],
+                            'venue' => $booking['venue'],
+                            'organization_id' => $org['id'],
+                            'organization_name' => $org['name'],
+                            'technical_needs' => $booking['technical_needs'] ?? null,
+                        ]
+                    ];
+                }
+            }
+
+            // Sort by date
+            usort($events, function($a, $b) {
+                return strtotime($a['start']) - strtotime($b['start']);
+            });
+
+            echo json_encode([
+                'success' => true,
+                'data' => $events
+            ]);
+        } catch (\Exception $e) {
+            error_log('Calendar events API error: ' . $e->getMessage());
+            http_response_code(500);
+            echo json_encode([
+                'success' => false,
+                'message' => 'Error fetching calendar events',
+                'error' => $e->getMessage()
+            ]);
+        }
+        exit;
+    }
 }

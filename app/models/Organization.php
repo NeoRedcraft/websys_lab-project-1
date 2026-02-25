@@ -120,4 +120,57 @@ class Organization
         $org = $this->getById($orgId);
         return $org !== null && $org['is_active'] === true;
     }
+
+    /**
+     * Get all active organizations with their details
+     */
+    public function getAllWithDetails()
+    {
+        try {
+            $organizations = $this->getAll();
+            
+            foreach ($organizations as &$org) {
+                // Get admin info
+                $org['admin'] = $this->getAdmin($org['id']);
+                
+                // Get upcoming bookings count
+                $bookingModel = new BookingRequest();
+                $bookings = $bookingModel->getByOrganization($org['id']);
+                $org['bookings'] = $bookings;
+                $org['upcoming_bookings_count'] = count(array_filter($bookings, function($b) {
+                    return $b['status'] === 'accepted' && strtotime($b['event_date']) >= time();
+                }));
+            }
+            
+            return $organizations;
+        } catch (\Exception $e) {
+            error_log('Error fetching organizations with details: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * Get organization with all accepted bookings (for calendar)
+     */
+    public function getWithAcceptedBookings($orgId)
+    {
+        try {
+            $org = $this->getById($orgId);
+            if (!$org) {
+                return null;
+            }
+
+            $bookingModel = new BookingRequest();
+            $allBookings = $bookingModel->getByOrganization($orgId);
+            
+            $org['accepted_bookings'] = array_filter($allBookings, function($b) {
+                return $b['status'] === 'accepted';
+            });
+            
+            return $org;
+        } catch (\Exception $e) {
+            error_log('Error fetching organization with bookings: ' . $e->getMessage());
+            return null;
+        }
+    }
 }

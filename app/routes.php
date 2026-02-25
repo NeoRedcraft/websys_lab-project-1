@@ -9,6 +9,7 @@ $router->get('/', 'PagesController@home');
 $router->get('/dashboard', 'PagesController@dashboard');
 $router->get('/organizer-dashboard', 'PagesController@organizerDashboard');
 $router->get('/directory', 'PagesController@directory');
+$router->get('/calendar', 'PagesController@calendar');
 $router->get('/account', 'PagesController@accountSettings');
 
 // ========== Authentication Routes ==========
@@ -69,6 +70,11 @@ $router->get('/bookings/edit/{id}', 'BookingController@editBooking');
 $router->post('/bookings/edit/{id}', 'BookingController@editBooking');
 $router->post('/bookings/delete', 'BookingController@deleteBooking');
 $router->get('/bookings/search-orgs', 'BookingController@searchOrganizations');
+
+// ========== API Routes ==========
+$router->get('/api/organizations/directory', 'BookingController@apiGetDirectoryOrganizations');
+$router->get('/api/calendar/events', 'BookingController@apiGetCalendarEvents');
+$router->get('/organizations/{id}', 'PagesController@organizationProfile');
 
 // ========== Fallback ==========
 // 404 fallback
