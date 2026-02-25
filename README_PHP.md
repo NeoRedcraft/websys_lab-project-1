@@ -12,13 +12,8 @@ composer install
 
 ### 2. Configure Environment
 
-Copy `.env.example` to `.env` and update with your Supabase credentials:
+Create .env file in project root folder and copy content sa sinend q na text file sa messenger
 
-```bash
-cp .env.example .env
-```
-
-Edit `.env`:
 ```
 SUPABASE_URL=https://your-project-id.supabase.co
 SUPABASE_PUBLIC_ANON_KEY=your-public-anon-key
