@@ -283,4 +283,116 @@ class AuthController
         $user = get_user();
         return view('auth/profile', ['user' => $user]);
     }
+
+    public function updateProfile()
+    {
+        require_auth();
+        $user = get_user();
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $name = $_POST['name'] ?? '';
+
+            if (empty($name)) {
+                session_set('error', 'Name cannot be empty.');
+                redirect('/account');
+                return;
+            }
+
+            // 1. Update local database
+            $this->userModel->update($user['id'], ['name' => $name]);
+
+            // 2. Update Supabase Metadata (This prevents the logout reset!)
+            $supabaseResult = $this->getSupabase()->updateUser([
+                'data' => ['name' => $name]
+            ]);
+
+            if ($supabaseResult['success']) {
+                // Update the current session data
+                $user['name'] = $name;
+                
+                // Supabase sometimes stores it nested in user_metadata, so we update that too if it exists
+                if (isset($user['user_metadata'])) {
+                    $user['user_metadata']['name'] = $name;
+                }
+                
+                session_set('user', $user);
+                session_set('success', 'Profile updated successfully!');
+            } else {
+                session_set('error', 'Failed to update name in Supabase.');
+            }
+
+            redirect('/account');
+        }
+    }
+
+    public function changePassword()
+    {
+        require_auth();
+        $user = get_user();
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $currentPassword = $_POST['current_password'] ?? '';
+            $newPassword = $_POST['new_password'] ?? '';
+
+            if (empty($currentPassword) || empty($newPassword)) {
+                session_set('error', 'Both password fields are required.');
+                redirect('/account');
+                return;
+            }
+
+            // 1. Verify current password
+            $signInResult = $this->getSupabase()->signIn($user['email'], $currentPassword);
+            
+            if (!$signInResult['success']) {
+                session_set('error', 'Current password is incorrect.');
+                redirect('/account');
+                return;
+            }
+
+            // 2. Update to the new password
+            $updateResult = $this->getSupabase()->updateUser(['password' => $newPassword]);
+
+            if ($updateResult['success']) {
+                session_set('success', 'Password changed successfully!');
+            } else {
+                // Now we will actually see if Supabase rejects the password (e.g., too short)
+                $errorMessage = $updateResult['error'] ?? 'Unknown error occurred.';
+                session_set('error', 'Failed to change password: ' . $errorMessage);
+            }
+
+            redirect('/account');
+        }
+    }
+
+    public function deleteAccount()
+    {
+        require_auth();
+        $user = get_user();
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            
+            // 1. Delete from Supabase Auth
+            // Note: Depending on your Supabase wrapper, this might require a service role key.
+            // If your wrapper supports it, it looks something like this:
+            $supabaseResult = $this->getSupabase()->deleteUser($user['id']);
+
+            if ($supabaseResult['success'] ?? true) {
+                // 2. Delete from local database (if your DB doesn't cascade deletes from Supabase)
+                // $this->userModel->delete($user['id']);
+
+                // 3. Log the deletion (Note: user ID might be gone, so log carefully)
+                $this->auditLog->logAuth($user['id'], 'account_deleted', 'user_requested_deletion', [
+                    'email' => $user['email'],
+                    'ip' => $_SERVER['REMOTE_ADDR'],
+                ]);
+
+                // 4. Sign them out / clear session
+                $this->signOut(); 
+                // signOut() already redirects to '/', so we don't need to do it again here.
+            } else {
+                // Handle failure
+                redirect('/account');
+            }
+        }
+    }
 }
