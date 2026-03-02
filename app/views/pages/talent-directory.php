@@ -7,90 +7,112 @@ ob_start();
     <div class="mb-12">
         <h1 class="text-4xl font-bold mb-2">Talent Directory</h1>
         <p class="text-gray-600 mb-8">Discover amazing performing organizations for your events</p>
-        
-        <!-- Search and Filter Section -->
-        <div class="mb-8">
-            <input 
-                type="text" 
-                id="searchInput" 
-                placeholder="Search by organization name or genre..." 
-                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600"
-            >
-        </div>
+
+        <form id="directorySearchForm" action="/search-results" method="GET" class="mb-8 bg-white rounded-lg shadow p-6">
+            <label for="q" class="block text-sm font-semibold text-gray-700 mb-2">Search Organizations</label>
+            <div class="flex gap-3">
+                <input
+                    type="text"
+                    id="q"
+                    name="q"
+                    placeholder="Search by organization name, genre, or bio"
+                    class="flex-1 w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600"
+                    autocomplete="off"
+                >
+                <button type="submit" class="bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700 transition">
+                    Search
+                </button>
+            </div>
+        </form>
     </div>
 
-    <!-- Organizations Grid -->
     <div id="organizationsContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <!-- Organizations will be loaded here via JavaScript -->
-        <div class="col-span-full text-center py-12">
-            <p class="text-gray-500">Loading organizations...</p>
+        <div class="col-span-full bg-white rounded-lg shadow p-8 text-center">
+            <p class="text-gray-600">Loading organizations...</p>
         </div>
     </div>
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
+    const form = document.getElementById('directorySearchForm');
+    const input = document.getElementById('q');
     const container = document.getElementById('organizationsContainer');
-    const searchInput = document.getElementById('searchInput');
-    let allOrganizations = [];
+    let organizations = [];
 
-    // Fetch organizations
-    fetch('/api/organizations/directory')
-        .then(response => response.json())
-        .then(data => {
-            allOrganizations = data.data || [];
-            renderOrganizations(allOrganizations);
-        })
-        .catch(error => {
-            console.error('Error loading organizations:', error);
-            container.innerHTML = '<div class="col-span-full text-center text-red-600">Error loading organizations</div>';
-        });
+    function escapeHtml(value) {
+        return String(value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
 
-    // Search functionality
-    searchInput.addEventListener('input', function(e) {
-        const query = e.target.value.toLowerCase();
-        const filtered = allOrganizations.filter(org => 
-            org.name.toLowerCase().includes(query) || 
-            (org.genre && org.genre.toLowerCase().includes(query))
-        );
-        renderOrganizations(filtered);
-    });
-
-    function renderOrganizations(organizations) {
-        if (organizations.length === 0) {
-            container.innerHTML = '<div class="col-span-full text-center py-12 text-gray-500">No organizations found</div>';
+    function renderOrganizations(items) {
+        if (!Array.isArray(items) || items.length === 0) {
+            container.innerHTML = '<div class="col-span-full bg-white rounded-lg shadow p-8 text-center"><p class="text-gray-600">No organizations found.</p></div>';
             return;
         }
 
-        container.innerHTML = organizations.map(org => `
-            <a href="/organizations/${org.id}" class="block bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition">
-                <div class="bg-gradient-to-r from-red-600 to-red-700 h-48 flex items-center justify-center">
-                    <div class="text-center">
-                        <div class="text-4xl font-bold text-white">${org.name.charAt(0)}</div>
-                        <div class="text-white text-sm mt-2">${org.genre || 'Organization'}</div>
-                    </div>
-                </div>
-                <div class="p-6">
-                    <h3 class="text-lg font-bold mb-2">${org.name}</h3>
-                    <p class="text-gray-600 text-sm mb-4">
-                        ${org.bio ? org.bio.substring(0, 100) + (org.bio.length > 100 ? '...' : '') : 'Professional performing organization'}
-                    </p>
-                    
-                    <!-- Genre Tag -->
-                    ${org.genre ? `<div class="mb-3"><span class="inline-block bg-red-100 text-red-700 text-xs px-3 py-1 rounded-full">${org.genre}</span></div>` : ''}
-                    
-                    <!-- Upcoming Bookings Count -->
-                    <div class="text-xs text-gray-500 mb-4">
-                        📅 ${org.upcoming_bookings_count || 0} upcoming booking${org.upcoming_bookings_count !== 1 ? 's' : ''}
-                    </div>
-                    
-                    <span class="w-full block bg-red-600 text-white py-2 rounded-lg text-center transition">
-                        View Profile
-                    </span>
-                </div>
-            </a>
-        `).join('');
+        container.innerHTML = items.map(function (organization) {
+            const name = organization.name || 'Organization';
+            const genre = organization.genre || 'Organization';
+            const bio = (organization.bio || '').trim();
+            const summary = bio ? (bio.length > 140 ? bio.substring(0, 140) + '...' : bio) : 'Professional performing organization';
+            const upcomingCount = Number(organization.upcoming_bookings_count || 0);
+
+            return '<div class="bg-white rounded-lg shadow-md overflow-hidden">'
+                + '<div class="bg-gradient-to-r from-red-600 to-red-700 h-40 flex items-center justify-center">'
+                + '<div class="text-center text-white">'
+                + '<div class="text-3xl font-bold">' + escapeHtml(name.substring(0, 1)) + '</div>'
+                + '<div class="text-sm mt-2">' + escapeHtml(genre) + '</div>'
+                + '</div></div>'
+                + '<div class="p-5">'
+                + '<h2 class="text-lg font-bold mb-2">' + escapeHtml(name) + '</h2>'
+                + '<p class="text-sm text-gray-600 mb-3">' + escapeHtml(summary) + '</p>'
+                + '<div class="text-xs text-gray-500 mb-4">' + upcomingCount + ' upcoming booking' + (upcomingCount === 1 ? '' : 's') + '</div>'
+                + '<a href="/organizations/' + Number(organization.id || 0) + '" class="w-full block bg-red-600 text-white py-2 rounded-lg text-center hover:bg-red-700 transition">View</a>'
+                + '</div></div>';
+        }).join('');
     }
+
+    function filterOrganizations(term) {
+        const query = term.trim().toLowerCase();
+        if (!query) {
+            renderOrganizations(organizations);
+            return;
+        }
+
+        const filtered = organizations.filter(function (organization) {
+            const name = (organization.name || '').toLowerCase();
+            const genre = (organization.genre || '').toLowerCase();
+            const bio = (organization.bio || '').toLowerCase();
+            return name.includes(query) || genre.includes(query) || bio.includes(query);
+        });
+
+        renderOrganizations(filtered);
+    }
+
+    fetch('/api/organizations/directory')
+        .then(function (response) { return response.json(); })
+        .then(function (data) {
+            organizations = Array.isArray(data.data) ? data.data : [];
+            renderOrganizations(organizations);
+        })
+        .catch(function () {
+            organizations = [];
+            container.innerHTML = '<div class="col-span-full bg-white rounded-lg shadow p-8 text-center"><p class="text-red-600">Error loading organizations.</p></div>';
+        });
+
+    input.addEventListener('input', function (event) {
+        filterOrganizations(event.target.value);
+    });
+
+    form.addEventListener('submit', function (event) {
+        event.preventDefault();
+        filterOrganizations(input.value);
+    });
 });
 </script>
 

@@ -8,6 +8,15 @@ class Gatekeeper
 {
     private $userModel;
 
+    private function getRoleName($userRole)
+    {
+        if (!is_array($userRole)) {
+            return null;
+        }
+
+        return $userRole['name'] ?? $userRole['role_name'] ?? null;
+    }
+
     public function __construct()
     {
         $this->userModel = new User();
@@ -48,8 +57,9 @@ class Gatekeeper
         }
 
         $userRole = $this->userModel->getRole($user['id']);
+        $roleName = $this->getRoleName($userRole);
         
-        if (!$userRole || $userRole['name'] !== $requiredRole) {
+        if (!$roleName || $roleName !== $requiredRole) {
             self::terminateSession('Unauthorized access attempt');
             exit;
         }
@@ -66,8 +76,9 @@ class Gatekeeper
         
         $user = get_user();
         $userRole = $this->userModel->getRole($user['id']);
+        $roleName = $this->getRoleName($userRole);
         
-        if (!$userRole || !in_array($userRole['name'], $allowedRoles)) {
+        if (!$roleName || !in_array($roleName, $allowedRoles)) {
             self::terminateSession('Unauthorized access');
             exit;
         }
@@ -111,8 +122,10 @@ class Gatekeeper
         session_forget('refresh_token');
         
         http_response_code(403);
-        
-        header('Location: /signin?error=unauthorized');
+
+        if (!headers_sent()) {
+            header('Location: /signin?error=unauthorized');
+        }
         exit;
     }
 
@@ -128,8 +141,9 @@ class Gatekeeper
         }
 
         $userRole = $this->userModel->getRole($userId);
-        
-        return $userRole && $userRole['name'] === 'org_admin';
+        $roleName = $this->getRoleName($userRole);
+
+        return $roleName === 'org_admin';
     }
 
     /**
@@ -153,14 +167,14 @@ class Gatekeeper
 
         // System admin can manage any org bookings
         $userRole = $this->userModel->getRole($userId);
-        if ($userRole && $userRole['name'] === 'system_admin') {
+        $roleName = $this->getRoleName($userRole);
+        if ($roleName === 'system_admin') {
             return true;
         }
 
         // Org admin can only manage their own org bookings
         return $user['org_id'] === $orgId && 
-               $userRole && 
-               $userRole['name'] === 'org_admin';
+             $roleName === 'org_admin';
     }
 
     /**

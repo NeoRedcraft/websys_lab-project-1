@@ -146,11 +146,17 @@ class OrgAdminController
     public function inboxBookings($params = [])
     {
         $user = get_user();
-        $orgId = $user['org_id'];
+        $userRecord = $this->userModel->getById($user['id']);
+        $orgId = $userRecord['org_id'] ?? null;
+
+        if (!$orgId) {
+            http_response_code(403);
+            return view('error/403', ['message' => 'No organization assigned to this user']);
+        }
 
         $bookingRequests = $this->bookingModel->getByOrganization($orgId);
 
-        return view('org/booking-inbox', [
+        return view('bookings/org-booking-inbox', [
             'bookingRequests' => $bookingRequests,
             'csrfToken' => csrf_token(),
         ]);
@@ -162,7 +168,8 @@ class OrgAdminController
     public function viewBooking($params = [])
     {
         $user = get_user();
-        $orgId = $user['org_id'];
+        $userRecord = $this->userModel->getById($user['id']);
+        $orgId = $userRecord['org_id'] ?? null;
         $bookingId = $params['id'] ?? null;
 
         if (!$bookingId) {
@@ -170,15 +177,20 @@ class OrgAdminController
             return 'Booking not found';
         }
 
+        if (!$orgId) {
+            http_response_code(403);
+            return 'No organization assigned';
+        }
+
         $booking = $this->bookingModel->getById($bookingId);
-        if (!$booking || $booking['org_id'] !== $orgId) {
+        if (!$booking || (int) ($booking['organization_id'] ?? 0) !== (int) $orgId) {
             http_response_code(403);
             return 'Unauthorized to view this booking';
         }
 
-        $organizer = $this->userModel->getById($booking['user_id']);
+        $organizer = $this->userModel->getById($booking['organizer_id']);
 
-        return view('org/booking-detail', [
+        return view('bookings/org-booking-detail', [
             'booking' => $booking,
             'organizer' => $organizer,
             'csrfToken' => csrf_token(),
@@ -196,16 +208,21 @@ class OrgAdminController
         }
 
         $user = get_user();
-        $orgId = $user['org_id'];
+        $userRecord = $this->userModel->getById($user['id']);
+        $orgId = $userRecord['org_id'] ?? null;
         $bookingId = $_POST['booking_id'] ?? null;
         $notes = $_POST['notes'] ?? '';
+
+        if (!$orgId) {
+            return ['error' => 'No organization assigned'];
+        }
 
         if (!$bookingId) {
             return ['error' => 'Booking ID required'];
         }
 
         $booking = $this->bookingModel->getById($bookingId);
-        if (!$booking || $booking['org_id'] !== $orgId) {
+        if (!$booking || (int) ($booking['organization_id'] ?? 0) !== (int) $orgId) {
             return ['error' => 'Unauthorized'];
         }
 
@@ -240,16 +257,21 @@ class OrgAdminController
         }
 
         $user = get_user();
-        $orgId = $user['org_id'];
+        $userRecord = $this->userModel->getById($user['id']);
+        $orgId = $userRecord['org_id'] ?? null;
         $bookingId = $_POST['booking_id'] ?? null;
         $reason = $_POST['reason'] ?? '';
+
+        if (!$orgId) {
+            return ['error' => 'No organization assigned'];
+        }
 
         if (!$bookingId) {
             return ['error' => 'Booking ID required'];
         }
 
         $booking = $this->bookingModel->getById($bookingId);
-        if (!$booking || $booking['org_id'] !== $orgId) {
+        if (!$booking || (int) ($booking['organization_id'] ?? 0) !== (int) $orgId) {
             return ['error' => 'Unauthorized'];
         }
 
@@ -279,7 +301,13 @@ class OrgAdminController
     public function statistics($params = [])
     {
         $user = get_user();
-        $orgId = $user['org_id'];
+        $userRecord = $this->userModel->getById($user['id']);
+        $orgId = $userRecord['org_id'] ?? null;
+
+        if (!$orgId) {
+            http_response_code(403);
+            return view('error/403', ['message' => 'No organization assigned to this user']);
+        }
 
         $stats = $this->bookingModel->getStats($orgId);
 

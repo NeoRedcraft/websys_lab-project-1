@@ -128,23 +128,48 @@ class Organization
     {
         try {
             $organizations = $this->getAll();
-            
-            foreach ($organizations as &$org) {
-                // Get admin info
-                $org['admin'] = $this->getAdmin($org['id']);
-                
-                // Get upcoming bookings count
-                $bookingModel = new BookingRequest();
-                $bookings = $bookingModel->getByOrganization($org['id']);
-                $org['bookings'] = $bookings;
-                $org['upcoming_bookings_count'] = count(array_filter($bookings, function($b) {
-                    return $b['status'] === 'accepted' && strtotime($b['event_date']) >= time();
-                }));
-            }
-            
-            return $organizations;
+
+            return $this->enrichOrganizations($organizations);
         } catch (\Exception $e) {
             error_log('Error fetching organizations with details: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * Search active organizations by term (name, genre, bio)
+     */
+    public function searchActiveByTerm($query)
+    {
+        try {
+            $term = trim((string) $query);
+            if ($term === '') {
+                return [];
+            }
+
+            $term = str_replace(['(', ')', ','], ' ', $term);
+            $pattern = '*' . $term . '*';
+            $orExpression = sprintf(
+                '(name.ilike.%s,genre.ilike.%s,bio.ilike.%s)',
+                $pattern,
+                $pattern,
+                $pattern
+            );
+
+            $endpoint = '/rest/v1/organizations?select=*'
+                . '&is_active=eq.true'
+                . '&or=' . urlencode($orExpression)
+                . '&order=name.asc';
+
+            $organizations = $this->supabase->makeRequest('GET', $endpoint, [], []);
+
+            if (!is_array($organizations)) {
+                return [];
+            }
+
+            return $this->enrichOrganizations($organizations);
+        } catch (\Exception $e) {
+            error_log('Error searching organizations: ' . $e->getMessage());
             return [];
         }
     }
@@ -174,5 +199,25 @@ class Organization
             error_log('Error fetching organization with bookings: ' . $e->getMessage());
             return null;
         }
+    }
+
+    /**
+     * Add computed details used in directory/results pages
+     */
+    private function enrichOrganizations(array $organizations)
+    {
+        $bookingModel = new BookingRequest();
+
+        foreach ($organizations as &$org) {
+            $org['admin'] = $this->getAdmin($org['id']);
+
+            $bookings = $bookingModel->getByOrganization($org['id']);
+            $org['bookings'] = $bookings;
+            $org['upcoming_bookings_count'] = count(array_filter($bookings, function($booking) {
+                return $booking['status'] === 'accepted' && strtotime($booking['event_date']) >= time();
+            }));
+        }
+
+        return $organizations;
     }
 }

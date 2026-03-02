@@ -150,7 +150,7 @@ class User
             // Usually, this is '3' or whatever your organizer ID is
             return [
                 'id' => 3, 
-                'role_name' => 'organizer'
+                'name' => 'organizer'
             ];
         }
 

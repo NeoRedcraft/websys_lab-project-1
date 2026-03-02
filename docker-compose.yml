@@ -16,4 +16,8 @@ services:
     volumes:
       # Mount source code for development (comment out for production)
       - .:/var/www/html
+    command: >
+      sh -c "if [ ! -f /var/www/html/vendor/autoload.php ]; then
+        composer install --no-dev --optimize-autoloader --no-interaction;
+      fi && apache2-foreground"
     restart: unless-stopped

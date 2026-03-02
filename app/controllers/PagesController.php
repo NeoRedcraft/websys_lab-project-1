@@ -80,6 +80,24 @@ class PagesController
         ]);
     }
 
+    public function searchResults($params = [])
+    {
+        $query = trim($_GET['q'] ?? '');
+        $organizations = [];
+
+        if ($query !== '') {
+            $orgModel = new \App\Models\Organization();
+            $organizations = $orgModel->searchActiveByTerm($query);
+        }
+
+        return view('pages/search-results', [
+            'query' => $query,
+            'organizations' => $organizations,
+            'isAuthenticated' => auth_check(),
+            'user' => get_user(),
+        ]);
+    }
+
     public function apiGetDirectoryOrganizations($params = [])
     {
         header('Content-Type: application/json');

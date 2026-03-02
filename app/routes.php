@@ -9,6 +9,7 @@ $router->get('/', 'PagesController@home');
 $router->get('/dashboard', 'PagesController@dashboard');
 $router->get('/organizer-dashboard', 'PagesController@organizerDashboard');
 $router->get('/directory', 'PagesController@directory');
+$router->get('/search-results', 'PagesController@searchResults');
 $router->get('/calendar', 'PagesController@calendar');
 $router->get('/account', 'PagesController@accountSettings');
 $router->post('/account/password', 'AuthController@changePassword');
