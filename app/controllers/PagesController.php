@@ -80,6 +80,37 @@ class PagesController
         ]);
     }
 
+    public function calendar($params = [])
+    {
+        return view('pages/calendar', [
+            'isAuthenticated' => auth_check(),
+            'user' => get_user(),
+        ]);
+    }
+
+    public function organizationProfile($params = [])
+    {
+        $orgId = $params['id'] ?? null;
+        
+        if (!$orgId) {
+            redirect('/directory');
+        }
+
+        $orgModel = new \App\Models\Organization();
+        $org = $orgModel->getWithAcceptedBookings($orgId);
+        
+        if (!$org) {
+            http_response_code(404);
+            return view('error/404');
+        }
+
+        return view('pages/organization-profile', [
+            'organization' => $org,
+            'isAuthenticated' => auth_check(),
+            'user' => get_user(),
+        ]);
+    }
+
     public function accountSettings($params = [])
     {
         require_auth();

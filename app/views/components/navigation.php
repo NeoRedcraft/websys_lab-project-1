@@ -10,6 +10,7 @@
             <div class="hidden md:flex items-center space-x-8">
                 <a href="/" class="text-gray-700 hover:text-red-600">Home</a>
                 <a href="/directory" class="text-gray-700 hover:text-red-600">Talent Directory</a>
+                <a href="/calendar" class="text-gray-700 hover:text-red-600">Calendar</a>
                 
                 <?php if (auth_check()): ?>
                     <div class="relative group">
