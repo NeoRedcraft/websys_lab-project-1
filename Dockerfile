@@ -14,6 +14,10 @@ RUN apt-get update && apt-get install -y \
 # Enable Apache mod_rewrite for routing
 RUN a2enmod rewrite
 
+# Suppress Apache FQDN warning in container
+RUN echo 'ServerName localhost' > /etc/apache2/conf-available/servername.conf \
+    && a2enconf servername
+
 # Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
