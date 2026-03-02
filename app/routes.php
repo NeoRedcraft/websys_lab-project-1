@@ -20,6 +20,9 @@ $router->get('/signup', 'AuthController@signUp');
 $router->post('/signup', 'AuthController@signUp');
 $router->get('/signout', 'AuthController@signOut');
 $router->get('/profile', 'AuthController@profile');
+$router->post('/account/update-profile', 'AuthController@updateProfile');
+$router->post('/account/change-password', 'AuthController@changePassword');
+$router->post('/account/delete', 'AuthController@deleteAccount');
 
 // ========== Admin Routes (System Admin Only) ==========
 $router->get('/admin/dashboard', 'AdminController@dashboard');

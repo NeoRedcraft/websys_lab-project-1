@@ -1,6 +1,8 @@
 <?php
 $title = 'Account Settings - Cardinal Stage';
 ob_start();
+require_auth();
+$user = get_user();
 ?>
 
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -25,15 +27,28 @@ ob_start();
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrf_token()); ?>">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
+                    <label for="name" class="block text-sm font-medium text-gray-700">Full Name</label>
+                    <input
+                        type="text"
+                        id="name"
+                        name="name"
+                        value="<?php echo htmlspecialchars($user['user_metadata']['name'] ?? $user['name'] ?? ''); ?>"                        required
+                        class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-red-500 focus:border-red-500"
+                    />
+                </div>
+
+                <div>
                     <label for="email" class="block text-sm font-medium text-gray-700">Email Address</label>
                     <input
                         type="email"
                         id="email"
-                        value="<?php echo htmlspecialchars($user['email']); ?>"
+                        value="<?php echo htmlspecialchars($user['email'] ?? ''); ?>"
                         disabled
                         class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500"
                     />
+                    <p class="text-xs text-gray-500 mt-1">Email cannot be changed.</p>
                 </div>
+
                 <div>
                     <label for="role" class="block text-sm font-medium text-gray-700">Role</label>
                     <input
@@ -77,4 +92,7 @@ ob_start();
     </div>
 </div>
 
-<?php $content = ob_get_clean(); include app_path('views/layout/app.php'); ?>
+<?php 
+$content = ob_get_clean(); 
+include app_path('views/layout/app.php'); 
+?>

@@ -399,4 +399,63 @@ class Supabase
     {
         return $this->publicAnonKey;
     }
+
+    /**
+     * Update the authenticated user's attributes (e.g., password)
+     */
+    public function updateUser($attributes)
+    {
+        if (!$this->isAvailable()) {
+            return ['success' => false, 'error' => 'Local auth does not support updating user credentials'];
+        }
+
+        // UPDATED: Using session_get() instead of $_SESSION
+        $accessToken = session_get('access_token');
+
+        if (!$accessToken) {
+            return ['success' => false, 'error' => 'Not authenticated. Missing access token.'];
+        }
+
+        try {
+            $response = $this->makeRequest('PUT', '/auth/v1/user', $attributes, [
+                'Authorization' => 'Bearer ' . $accessToken,
+            ]);
+
+            return [
+                'success' => true,
+                'user' => $response,
+            ];
+        } catch (\Exception $e) {
+            return [
+                'success' => false,
+                'error' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Delete a user from Supabase Auth
+     * Note: This requires the Admin Service Role Key
+     */
+    public function deleteUser($userId)
+    {
+        if (!$this->isAvailable()) {
+            return ['success' => false, 'error' => 'Local auth does not support deleting users'];
+        }
+
+        try {
+            // Deleting a user requires bypassing Row Level Security, 
+            // so we use your existing adminRequest method.
+            $this->adminRequest('DELETE', "/auth/v1/admin/users/{$userId}");
+
+            return [
+                'success' => true,
+            ];
+        } catch (\Exception $e) {
+            return [
+                'success' => false,
+                'error' => $e->getMessage(),
+            ];
+        }
+    }
 }
