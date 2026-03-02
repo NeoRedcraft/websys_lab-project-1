@@ -284,6 +284,46 @@ class AuthController
         return view('auth/profile', ['user' => $user]);
     }
 
+    public function updateProfile()
+    {
+        require_auth();
+        $user = get_user();
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            redirect('/account');
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!verify_csrf($csrfToken)) {
+            redirect('/account?error=' . urlencode('Invalid request token. Please try again.'));
+        }
+
+        $name = trim($_POST['name'] ?? '');
+        if ($name === '') {
+            redirect('/account?error=' . urlencode('Name cannot be empty.'));
+        }
+
+        // 1. Update local database record
+        $this->userModel->update($user['id'], ['name' => $name]);
+
+        // 2. Update Supabase metadata so dashboard reflects change without logout
+        $supabaseResult = $this->getSupabase()->updateUser([
+            'data' => ['name' => $name]
+        ]);
+
+        if ($supabaseResult['success']) {
+            // refresh session copy of user
+            $user['name'] = $name;
+            if (isset($user['user_metadata'])) {
+                $user['user_metadata']['name'] = $name;
+            }
+            session_set('user', $user);
+            redirect('/account?success=' . urlencode('Profile updated successfully!'));
+        } else {
+            redirect('/account?error=' . urlencode('Failed to update name in Supabase.'));
+        }
+    }
+
     public function changePassword($params = [])
     {
         require_auth();
