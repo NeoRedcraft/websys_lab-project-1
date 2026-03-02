@@ -23,7 +23,7 @@ $user = get_user();
     <div class="bg-white rounded-lg shadow-md p-8">
         <h2 class="text-2xl font-bold mb-6">Profile Information</h2>
 
-        <form class="space-y-6" method="post" action="/account/password">
+        <form class="space-y-6" method="post" action="/account/update-profile">
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrf_token()); ?>">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
@@ -61,8 +61,17 @@ $user = get_user();
                 </div>
             </div>
 
-            <div class="border-t pt-6">
-                <h3 class="text-lg font-bold mb-4">Security</h3>
+            <div class="pt-6">
+                <button type="submit" class="bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700">
+                    Save Changes
+                </button>
+            </div>
+        </form>
+
+        <div class="border-t pt-6">
+            <h3 class="text-lg font-bold mb-4">Security</h3>
+            <form class="space-y-6" method="post" action="/account/change-password">
+                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrf_token()); ?>">
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                     <div>
                         <label for="current_password" class="block text-sm font-medium text-gray-700">Current Password</label>
@@ -80,15 +89,18 @@ $user = get_user();
                 <button type="submit" class="bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700">
                     Change Password
                 </button>
-            </div>
+            </form>
+        </div>
 
-            <div class="border-t pt-6">
-                <h3 class="text-lg font-bold mb-4 text-red-600">Danger Zone</h3>
-                <button type="button" class="bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700">
+        <div class="border-t pt-6">
+            <h3 class="text-lg font-bold mb-4 text-red-600">Danger Zone</h3>
+            <form method="post" action="/account/delete">
+                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrf_token()); ?>">
+                <button type="submit" class="bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700">
                     Delete Account
                 </button>
-            </div>
-        </form>
+            </form>
+        </div>
     </div>
 </div>
 
