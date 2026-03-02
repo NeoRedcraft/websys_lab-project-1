@@ -2,9 +2,6 @@
 
 namespace App\Utils;
 
-// Optional GoTrue client — only used when the Supabase PHP SDK is installed.
-// We avoid a hard dependency so the app can run without the SDK for simple REST usage.
-
 class Supabase
 {
     private static $instance = null;
@@ -23,7 +20,6 @@ class Supabase
             throw new \Exception('Missing Supabase credentials. Please set SUPABASE_URL and SUPABASE_PUBLIC_ANON_KEY in .env file');
         }
 
-        // Initialize GoTrue for auth only if the SDK is available.
         if (class_exists('\Supabase\\GoTrue\\GoTrue')) {
             try {
                 $this->auth = new (\Supabase\GoTrue\GoTrue::class)([
@@ -36,7 +32,6 @@ class Supabase
                     ],
                 ]);
             } catch (\Throwable $e) {
-                // If instantiation fails, fall back to null and continue using REST calls.
                 error_log('Supabase GoTrue init skipped: ' . $e->getMessage());
                 $this->auth = null;
             }
@@ -55,7 +50,6 @@ class Supabase
 
     public function signUp($email, $password, $metadata = [])
     {
-        // If Supabase appears unavailable, use local fallback auth
         if (!$this->isAvailable()) {
             $local = new LocalAuth();
             return $local->signUp($email, $password, $metadata);
@@ -68,13 +62,11 @@ class Supabase
                 'data' => $metadata,
             ]);
 
-            // Supabase /auth/v1/signup returns the user object directly
-            // Wrap it to match signIn response structure
             return [
                 'success' => true,
                 'data' => [
                     'user' => $response,
-                    'access_token' => null,  // signup doesn't return tokens
+                    'access_token' => null,
                     'refresh_token' => null,
                 ],
             ];
@@ -99,7 +91,6 @@ class Supabase
                 'password' => $password,
             ]);
 
-            // Make sure we actually got a token back
             if (empty($response['access_token'])) {
                 return ['success' => false, 'error' => 'Invalid credentials'];
             }
@@ -117,13 +108,10 @@ class Supabase
     public function signOut()
     {
         try {
-            // Clear local session
             session_forget('user');
             session_forget('access_token');
             session_forget('refresh_token');
-            return [
-                'success' => true,
-            ];
+            return ['success' => true];
         } catch (\Exception $e) {
             return [
                 'success' => false,
@@ -196,7 +184,6 @@ class Supabase
     public function getUserProfile($accessToken)
     {
         if (!$this->isAvailable()) {
-            // LocalAuth does not support token->user mapping; return null user
             return ['success' => false, 'error' => 'Local auth does not provide profile by token'];
         }
 
@@ -217,9 +204,6 @@ class Supabase
         }
     }
 
-    /**
-     * Heuristic for whether Supabase REST/auth endpoints are configured.
-     */
     public function isAvailable()
     {
         if (!$this->supabaseUrl || stripos($this->supabaseUrl, 'your-') !== false) {
@@ -300,9 +284,7 @@ class Supabase
                 'Authorization' => $accessToken ? "Bearer {$accessToken}" : 'Bearer ' . $this->publicAnonKey,
             ]);
 
-            return [
-                'success' => true,
-            ];
+            return ['success' => true];
         } catch (\Exception $e) {
             return [
                 'success' => false,
@@ -311,13 +293,6 @@ class Supabase
         }
     }
 
-    /**
-     * Make a request using the SERVICE ROLE key.
-     * Use this for all admin operations that need to bypass RLS:
-     * - Creating auth users (pre-registering presidents)
-     * - Reading all users (admin user list)
-     * - Updating roles
-     */
     public function adminRequest($method, $endpoint, $data = [], $extraHeaders = [])
     {
         if (!$this->secretKey) {
@@ -373,7 +348,6 @@ class Supabase
             throw new \Exception($decoded['error']['message'] ?? 'Supabase error');
         }
 
-        // Catch Supabase auth error format (code + error_code + msg)
         if (isset($decoded['error_code'])) {
             throw new \Exception($decoded['msg'] ?? $decoded['error_code'] ?? 'Authentication error');
         }
@@ -400,16 +374,12 @@ class Supabase
         return $this->publicAnonKey;
     }
 
-    /**
-     * Update the authenticated user's attributes (e.g., password)
-     */
     public function updateUser($attributes)
     {
         if (!$this->isAvailable()) {
             return ['success' => false, 'error' => 'Local auth does not support updating user credentials'];
         }
 
-        // UPDATED: Using session_get() instead of $_SESSION
         $accessToken = session_get('access_token');
 
         if (!$accessToken) {
@@ -433,10 +403,6 @@ class Supabase
         }
     }
 
-    /**
-     * Delete a user from Supabase Auth
-     * Note: This requires the Admin Service Role Key
-     */
     public function deleteUser($userId)
     {
         if (!$this->isAvailable()) {
@@ -444,18 +410,44 @@ class Supabase
         }
 
         try {
-            // Deleting a user requires bypassing Row Level Security, 
-            // so we use your existing adminRequest method.
             $this->adminRequest('DELETE', "/auth/v1/admin/users/{$userId}");
-
-            return [
-                'success' => true,
-            ];
+            return ['success' => true];
         } catch (\Exception $e) {
             return [
                 'success' => false,
                 'error' => $e->getMessage(),
             ];
         }
+    }
+
+    /**
+     * Upload a file to Supabase Storage
+     */
+    public function uploadFile($bucket, $path, $fileContent, $mimeType)
+    {
+        $url = $this->supabaseUrl . "/storage/v1/object/{$bucket}/{$path}";
+
+        $context = stream_context_create([
+            'http' => [
+                'method' => 'POST',
+                'header' => implode("\r\n", [
+                    'apikey: ' . $this->publicAnonKey,
+                    'Authorization: Bearer ' . $this->secretKey,
+                    'Content-Type: ' . $mimeType,
+                    'x-upsert: true',
+                ]),
+                'content' => $fileContent,
+                'ignore_errors' => true,
+            ],
+        ]);
+
+        $response = @file_get_contents($url, false, $context);
+        $decoded = json_decode($response, true);
+
+        if (isset($decoded['error'])) {
+            throw new \Exception($decoded['error'] ?? 'Upload failed');
+        }
+
+        return $this->supabaseUrl . "/storage/v1/object/public/{$bucket}/{$path}";
     }
 }

@@ -61,13 +61,20 @@ document.addEventListener('DOMContentLoaded', function () {
             const bio = (organization.bio || '').trim();
             const summary = bio ? (bio.length > 140 ? bio.substring(0, 140) + '...' : bio) : 'Professional performing organization';
             const upcomingCount = Number(organization.upcoming_bookings_count || 0);
+            const imageUrl = organization.image_url || '';
+
+            const banner = imageUrl
+                ? '<div class="h-40 overflow-hidden">'
+                  + '<img src="' + escapeHtml(imageUrl) + '" class="w-full h-full object-cover" alt="' + escapeHtml(name) + '" />'
+                  + '</div>'
+                : '<div class="bg-gradient-to-r from-red-600 to-red-700 h-40 flex items-center justify-center">'
+                  + '<div class="text-center text-white">'
+                  + '<div class="text-3xl font-bold">' + escapeHtml(name.substring(0, 1)) + '</div>'
+                  + '<div class="text-sm mt-2">' + escapeHtml(genre) + '</div>'
+                  + '</div></div>';
 
             return '<div class="bg-white rounded-lg shadow-md overflow-hidden">'
-                + '<div class="bg-gradient-to-r from-red-600 to-red-700 h-40 flex items-center justify-center">'
-                + '<div class="text-center text-white">'
-                + '<div class="text-3xl font-bold">' + escapeHtml(name.substring(0, 1)) + '</div>'
-                + '<div class="text-sm mt-2">' + escapeHtml(genre) + '</div>'
-                + '</div></div>'
+                + banner
                 + '<div class="p-5">'
                 + '<h2 class="text-lg font-bold mb-2">' + escapeHtml(name) + '</h2>'
                 + '<p class="text-sm text-gray-600 mb-3">' + escapeHtml(summary) + '</p>'

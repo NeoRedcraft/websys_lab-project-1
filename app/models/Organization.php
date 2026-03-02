@@ -13,9 +13,6 @@ class Organization
         $this->supabase = Supabase::getInstance();
     }
 
-    /**
-     * Get organization by ID
-     */
     public function getById($orgId)
     {
         try {
@@ -27,9 +24,6 @@ class Organization
         }
     }
 
-    /**
-     * Get all active organizations
-     */
     public function getAll()
     {
         try {
@@ -41,9 +35,6 @@ class Organization
         }
     }
 
-    /**
-     * Create new organization
-     */
     public function create($data, $accessToken = null)
     {
         try {
@@ -61,9 +52,6 @@ class Organization
         }
     }
 
-    /**
-     * Update organization profile
-     */
     public function update($orgId, $data, $accessToken = null)
     {
         try {
@@ -76,9 +64,6 @@ class Organization
         }
     }
 
-    /**
-     * Delete/Deactivate organization
-     */
     public function delete($orgId, $accessToken = null)
     {
         try {
@@ -89,22 +74,19 @@ class Organization
         }
     }
 
-    /**
-     * Get organization admin (president)
-     */
     public function getAdmin($orgId)
     {
         try {
             $userModel = new User();
             $admins = $userModel->getByOrganization($orgId);
-            
+
             foreach ($admins as $admin) {
                 $role = $userModel->getRole($admin['id']);
                 if ($role && $role['name'] === 'org_admin') {
                     return $admin;
                 }
             }
-            
+
             return null;
         } catch (\Exception $e) {
             error_log('Error fetching org admin: ' . $e->getMessage());
@@ -112,23 +94,16 @@ class Organization
         }
     }
 
-    /**
-     * Check if organization exists
-     */
     public function exists($orgId)
     {
         $org = $this->getById($orgId);
         return $org !== null && $org['is_active'] === true;
     }
 
-    /**
-     * Get all active organizations with their details
-     */
     public function getAllWithDetails()
     {
         try {
             $organizations = $this->getAll();
-
             return $this->enrichOrganizations($organizations);
         } catch (\Exception $e) {
             error_log('Error fetching organizations with details: ' . $e->getMessage());
@@ -136,9 +111,6 @@ class Organization
         }
     }
 
-    /**
-     * Search active organizations by term (name, genre, bio)
-     */
     public function searchActiveByTerm($query)
     {
         try {
@@ -174,9 +146,6 @@ class Organization
         }
     }
 
-    /**
-     * Get organization with all accepted bookings (for calendar)
-     */
     public function getWithAcceptedBookings($orgId)
     {
         try {
@@ -189,11 +158,11 @@ class Organization
 
             $bookingModel = new BookingRequest();
             $allBookings = $bookingModel->getByOrganization($orgId);
-            
+
             $org['accepted_bookings'] = array_filter($allBookings, function($b) {
                 return $b['status'] === 'accepted';
             });
-            
+
             return $org;
         } catch (\Exception $e) {
             error_log('Error fetching organization with bookings: ' . $e->getMessage());
@@ -202,8 +171,41 @@ class Organization
     }
 
     /**
-     * Add computed details used in directory/results pages
+     * Upload org image to Supabase Storage and return public URL
      */
+    public function uploadImage($orgId, $file)
+    {
+        if (empty($file['tmp_name']) || $file['error'] !== UPLOAD_ERR_OK) {
+            error_log('Upload error code: ' . ($file['error'] ?? 'no file'));
+            return null;
+        }
+
+        $allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+        $mimeType = mime_content_type($file['tmp_name']);
+
+        error_log('Detected mime type: ' . $mimeType);
+
+        if (!in_array($mimeType, $allowedTypes)) {
+            error_log('Invalid mime type: ' . $mimeType);
+            throw new \Exception('Invalid file type. Only JPG, PNG, GIF, WEBP allowed.');
+        }
+
+        if ($file['size'] > 2 * 1024 * 1024) {
+            error_log('File too large: ' . $file['size']);
+            throw new \Exception('File too large. Maximum 2MB.');
+        }
+
+        $ext = pathinfo($file['name'], PATHINFO_EXTENSION);
+        $path = "org-{$orgId}-" . time() . '.' . $ext;
+        $fileContent = file_get_contents($file['tmp_name']);
+
+        error_log('Attempting upload to bucket: organization-images, path: ' . $path);
+        $url = $this->supabase->uploadFile('organization-images', $path, $fileContent, $mimeType);
+        error_log('Upload result URL: ' . $url);
+
+        return $url;
+    }
+
     private function enrichOrganizations(array $organizations)
     {
         $bookingModel = new BookingRequest();

@@ -10,7 +10,7 @@ ob_start();
         <div class="bg-red-50 border border-red-200 text-red-800 p-3 rounded mb-4"><?= htmlspecialchars($error) ?></div>
     <?php endif; ?>
 
-    <form method="post" action="<?= isset($organization) ? '/admin/organizations/edit/' . ($organization['id'] ?? '') : '/admin/organizations/create' ?>">
+    <form method="post" enctype="multipart/form-data" action="<?= isset($organization) ? '/admin/organizations/edit/' . ($organization['id'] ?? '') : '/admin/organizations/create' ?>">
         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? '') ?>">
 
         <div class="mb-4">
@@ -26,6 +26,15 @@ ob_start();
         <div class="mb-4">
             <label class="block text-sm font-medium text-gray-700">Bio</label>
             <textarea name="bio" class="mt-1 block w-full border rounded px-3 py-2"><?= htmlspecialchars($organization['bio'] ?? '') ?></textarea>
+        </div>
+
+        <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-700">Organization Image</label>
+            <?php if (!empty($organization['image_url'])): ?>
+                <img src="<?= htmlspecialchars($organization['image_url']) ?>" class="w-full h-40 object-cover rounded mb-2" />
+            <?php endif; ?>
+            <input type="file" name="image" accept="image/*" class="mt-1 block w-full border rounded px-3 py-2" />
+            <p class="text-xs text-gray-500 mt-1">Accepted: JPG, PNG, GIF, WEBP. Max 2MB.</p>
         </div>
 
         <div class="flex items-center space-x-3">

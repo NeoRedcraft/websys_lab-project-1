@@ -21,13 +21,9 @@ class AdminController
         $this->organizationModel = new Organization();
         $this->auditLog = new AuditLog();
 
-        // FR-03: Require system admin role for all admin operations
         $this->gatekeeper->requireAdmin();
     }
 
-    /**
-     * Admin Dashboard - Master Panel
-     */
     public function dashboard($params = [])
     {
         $user = get_user();
@@ -42,9 +38,6 @@ class AdminController
         ]);
     }
 
-    /**
-     * List all organizations
-     */
     public function listOrganizations($params = [])
     {
         $organizations = $this->organizationModel->getAll();
@@ -55,9 +48,6 @@ class AdminController
         ]);
     }
 
-    /**
-     * Create new organization (GET form / POST create)
-     */
     public function createOrganization($params = [])
     {
         if ($_SERVER['REQUEST_METHOD'] === 'GET') {
@@ -68,8 +58,11 @@ class AdminController
         }
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            error_log('CREATE POST received');
+            error_log('FILES: ' . print_r($_FILES, true));
+            error_log('POST: ' . print_r($_POST, true));
+
             $name = $_POST['name'] ?? '';
-            $description = $_POST['description'] ?? '';
             $genre = $_POST['genre'] ?? '';
             $bio = $_POST['bio'] ?? '';
             $technicalRequirements = $_POST['technical_requirements'] ?? '';
@@ -84,7 +77,6 @@ class AdminController
 
             $result = $this->organizationModel->create([
                 'name' => $name,
-                'description' => $description,
                 'genre' => $genre,
                 'bio' => $bio,
                 'technical_requirements' => $technicalRequirements,
@@ -99,19 +91,26 @@ class AdminController
                 ]);
             }
 
-            // Log organization creation
+            if (!empty($_FILES['image']['name'])) {
+                try {
+                    $imageUrl = $this->organizationModel->uploadImage($result, $_FILES['image']);
+                    if ($imageUrl) {
+                        $this->organizationModel->update($result, ['image_url' => $imageUrl]);
+                    }
+                } catch (\Exception $e) {
+                    error_log('Image upload failed: ' . $e->getMessage());
+                }
+            }
+
             $this->auditLog->logOrganization(get_user()['id'], 'created', $result, null, [
                 'name' => $name,
-                'description' => $description,
+                'genre' => $genre,
             ]);
 
             redirect('/admin/organizations?success=Organization created');
         }
     }
 
-    /**
-     * Edit organization
-     */
     public function editOrganization($params = [])
     {
         $orgId = $params['id'] ?? null;
@@ -134,21 +133,36 @@ class AdminController
         }
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            error_log('EDIT POST received');
+            error_log('FILES: ' . print_r($_FILES, true));
+            error_log('POST: ' . print_r($_POST, true));
+
             $name = $_POST['name'] ?? $organization['name'];
-            $description = $_POST['description'] ?? $organization['description'];
             $genre = $_POST['genre'] ?? $organization['genre'];
             $bio = $_POST['bio'] ?? $organization['bio'];
             $technicalRequirements = $_POST['technical_requirements'] ?? $organization['technical_requirements'];
             $youtubeLinks = $_POST['youtube_links'] ?? $organization['youtube_links'];
 
-            $updated = $this->organizationModel->update($orgId, [
+            $updateData = [
                 'name' => $name,
-                'description' => $description,
                 'genre' => $genre,
                 'bio' => $bio,
                 'technical_requirements' => $technicalRequirements,
                 'youtube_links' => $youtubeLinks,
-            ]);
+            ];
+
+            if (!empty($_FILES['image']['name'])) {
+                try {
+                    $imageUrl = $this->organizationModel->uploadImage($orgId, $_FILES['image']);
+                    if ($imageUrl) {
+                        $updateData['image_url'] = $imageUrl;
+                    }
+                } catch (\Exception $e) {
+                    error_log('Image upload failed: ' . $e->getMessage());
+                }
+            }
+
+            $updated = $this->organizationModel->update($orgId, $updateData);
 
             if (!$updated) {
                 return view('admin/organization-form', [
@@ -158,19 +172,15 @@ class AdminController
                 ]);
             }
 
-            // Log organization update
             $this->auditLog->logOrganization(get_user()['id'], 'updated', $orgId, $organization, [
                 'name' => $name,
-                'description' => $description,
+                'genre' => $genre,
             ]);
 
             redirect('/admin/organizations?success=Organization updated');
         }
     }
 
-    /**
-     * Delete organization
-     */
     public function deleteOrganization($params = [])
     {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -200,21 +210,16 @@ class AdminController
             ]);
         }
 
-        // Log organization deletion
         $this->auditLog->logOrganization(get_user()['id'], 'deleted', $orgId, $organization, []);
 
         redirect('/admin/organizations?success=Organization deleted');
     }
 
-    /**
-     * List all users for role assignment
-     */
     public function listUsers($params = [])
     {
         $users         = $this->userModel->getAll();
         $organizations = $this->organizationModel->getAll();
 
-        // Fetch roles for the change-role dropdown
         try {
             $supabase = \App\Utils\Supabase::getInstance();
             $rolesRaw = $supabase->adminRequest('GET', '/rest/v1/roles?select=id,name&order=id.asc');
@@ -231,9 +236,6 @@ class AdminController
         ]);
     }
 
-    /**
-     * Assign role to user
-     */
     public function assignRole($params = [])
     {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -262,7 +264,6 @@ class AdminController
             return ['error' => 'Failed to assign role'];
         }
 
-        // Log role assignment
         $this->auditLog->logUser(get_user()['id'], 'role_assigned', $userId, $user, [
             'old_role' => $oldRole['name'] ?? null,
             'new_role' => $roleId,
@@ -272,9 +273,6 @@ class AdminController
         return ['success' => 'Role assigned successfully'];
     }
 
-    /**
-     * Pre-register organization president
-     */
     public function preregisterPresident($params = [])
     {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -298,7 +296,6 @@ class AdminController
             return json_response(['error' => 'Email already registered'], 409);
         }
 
-        // org_admin role_id = 2 (matches your roles table insert order)
         $result = $this->userModel->adminCreateUser($email, $name, 2, $orgId);
 
         if (!$result['success']) {
@@ -313,14 +310,11 @@ class AdminController
 
         return json_response([
             'success'       => 'President pre-registered successfully',
-            'temp_password' => $result['temp_password'], // Show once to admin
+            'temp_password' => $result['temp_password'],
             'user_id'       => $result['user_id'],
         ]);
     }
 
-    /**
-     * View audit logs
-     */
     public function auditLogs($params = [])
     {
         $limit = $_GET['limit'] ?? 100;
