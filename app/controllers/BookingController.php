@@ -49,10 +49,12 @@ class BookingController
     {
         if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             $organizations = $this->organizationModel->getAll();
+            $selectedOrgId = $_GET['org_id'] ?? null;
 
             return view('bookings/booking-form', [
                 'booking' => null,
                 'organizations' => $organizations,
+                'selectedOrgId' => $selectedOrgId,
                 'csrfToken' => csrf_token(),
             ]);
         }

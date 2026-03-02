@@ -132,6 +132,67 @@ class Supabase
         }
     }
 
+    public function refreshSession($refreshToken)
+    {
+        if (!$this->isAvailable()) {
+            return [
+                'success' => false,
+                'error' => 'Token refresh is not available in local auth mode',
+            ];
+        }
+
+        try {
+            $response = $this->makeRequest('POST', '/auth/v1/token?grant_type=refresh_token', [
+                'refresh_token' => $refreshToken,
+            ]);
+
+            if (empty($response['access_token'])) {
+                return [
+                    'success' => false,
+                    'error' => 'Failed to refresh session token',
+                ];
+            }
+
+            return [
+                'success' => true,
+                'data' => $response,
+            ];
+        } catch (\Exception $e) {
+            return [
+                'success' => false,
+                'error' => $e->getMessage(),
+            ];
+        }
+    }
+
+    public function updateUserPassword($newPassword, $accessToken)
+    {
+        if (!$this->isAvailable()) {
+            return [
+                'success' => false,
+                'error' => 'Password update is not available in local auth mode',
+            ];
+        }
+
+        try {
+            $response = $this->makeRequest('PUT', '/auth/v1/user', [
+                'password' => $newPassword,
+            ], [
+                'Authorization' => 'Bearer ' . $accessToken,
+            ]);
+
+            return [
+                'success' => true,
+                'data' => $response,
+            ];
+        } catch (\Exception $e) {
+            return [
+                'success' => false,
+                'error' => $e->getMessage(),
+            ];
+        }
+    }
+
     public function getUserProfile($accessToken)
     {
         if (!$this->isAvailable()) {

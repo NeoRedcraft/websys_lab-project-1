@@ -63,7 +63,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         container.innerHTML = organizations.map(org => `
-            <div class="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition">
+            <a href="/organizations/${org.id}" class="block bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition">
                 <div class="bg-gradient-to-r from-red-600 to-red-700 h-48 flex items-center justify-center">
                     <div class="text-center">
                         <div class="text-4xl font-bold text-white">${org.name.charAt(0)}</div>
@@ -84,11 +84,11 @@ document.addEventListener('DOMContentLoaded', function() {
                         📅 ${org.upcoming_bookings_count || 0} upcoming booking${org.upcoming_bookings_count !== 1 ? 's' : ''}
                     </div>
                     
-                    <a href="/organizations/${org.id}" class="w-full block bg-red-600 text-white py-2 rounded-lg hover:bg-red-700 text-center transition">
+                    <span class="w-full block bg-red-600 text-white py-2 rounded-lg text-center transition">
                         View Profile
-                    </a>
+                    </span>
                 </div>
-            </div>
+            </a>
         `).join('');
     }
 });

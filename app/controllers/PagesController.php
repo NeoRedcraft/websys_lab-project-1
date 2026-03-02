@@ -80,6 +80,29 @@ class PagesController
         ]);
     }
 
+    public function apiGetDirectoryOrganizations($params = [])
+    {
+        header('Content-Type: application/json');
+
+        try {
+            $orgModel = new \App\Models\Organization();
+            $organizations = $orgModel->getAllWithDetails();
+
+            echo json_encode([
+                'success' => true,
+                'data' => $organizations,
+            ]);
+        } catch (\Exception $e) {
+            http_response_code(500);
+            echo json_encode([
+                'success' => false,
+                'message' => 'Error fetching organizations',
+            ]);
+        }
+
+        exit;
+    }
+
     public function calendar($params = [])
     {
         return view('pages/calendar', [

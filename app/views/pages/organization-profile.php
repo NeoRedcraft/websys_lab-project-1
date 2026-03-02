@@ -121,7 +121,7 @@ ob_start();
             </div>
 
             <!-- Action Button -->
-            <?php if ($isAuthenticated && $user['role'] === 'organizer'): ?>
+            <?php if ($isAuthenticated && user_has_role('organizer')): ?>
                 <a href="/bookings/create?org_id=<?php echo $organization['id']; ?>" class="w-full block bg-red-600 text-white py-3 rounded-lg hover:bg-red-700 text-center font-semibold transition">
                     Request Booking
                 </a>

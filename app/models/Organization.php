@@ -160,6 +160,8 @@ class Organization
                 return null;
             }
 
+            $org['admin'] = $this->getAdmin($orgId);
+
             $bookingModel = new BookingRequest();
             $allBookings = $bookingModel->getByOrganization($orgId);
             

@@ -11,6 +11,7 @@ $router->get('/organizer-dashboard', 'PagesController@organizerDashboard');
 $router->get('/directory', 'PagesController@directory');
 $router->get('/calendar', 'PagesController@calendar');
 $router->get('/account', 'PagesController@accountSettings');
+$router->post('/account/password', 'AuthController@changePassword');
 
 // ========== Authentication Routes ==========
 $router->get('/signin', 'AuthController@signIn');
@@ -72,7 +73,7 @@ $router->post('/bookings/delete', 'BookingController@deleteBooking');
 $router->get('/bookings/search-orgs', 'BookingController@searchOrganizations');
 
 // ========== API Routes ==========
-$router->get('/api/organizations/directory', 'BookingController@apiGetDirectoryOrganizations');
+$router->get('/api/organizations/directory', 'PagesController@apiGetDirectoryOrganizations');
 $router->get('/api/calendar/events', 'BookingController@apiGetCalendarEvents');
 $router->get('/organizations/{id}', 'PagesController@organizationProfile');
 

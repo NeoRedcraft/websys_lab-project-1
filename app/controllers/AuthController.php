@@ -283,4 +283,98 @@ class AuthController
         $user = get_user();
         return view('auth/profile', ['user' => $user]);
     }
+
+    public function changePassword($params = [])
+    {
+        require_auth();
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            redirect('/account');
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!verify_csrf($csrfToken)) {
+            redirect('/account?error=' . urlencode('Invalid request token. Please try again.'));
+        }
+
+        $currentPassword = $_POST['current_password'] ?? '';
+        $newPassword = $_POST['new_password'] ?? '';
+        $confirmPassword = $_POST['confirm_password'] ?? '';
+
+        if (!$currentPassword || !$newPassword || !$confirmPassword) {
+            redirect('/account?error=' . urlencode('All password fields are required.'));
+        }
+
+        if (strlen($newPassword) < 8) {
+            redirect('/account?error=' . urlencode('New password must be at least 8 characters.'));
+        }
+
+        if ($newPassword !== $confirmPassword) {
+            redirect('/account?error=' . urlencode('New password and confirmation do not match.'));
+        }
+
+        $user = get_user();
+        $email = $user['email'] ?? '';
+
+        $reAuth = $this->getSupabase()->signIn($email, $currentPassword);
+        if (!$reAuth['success']) {
+            redirect('/account?error=' . urlencode('Current password is incorrect.'));
+        }
+
+        $accessToken = session_get('access_token');
+        $refreshToken = session_get('refresh_token');
+
+        if (!$accessToken) {
+            redirect('/signin?error=' . urlencode('Your session expired. Please sign in again.'));
+        }
+
+        $updateResult = $this->getSupabase()->updateUserPassword($newPassword, $accessToken);
+
+        $needsRefresh = !$updateResult['success']
+            && !empty($refreshToken)
+            && stripos($updateResult['error'] ?? '', 'jwt') !== false
+            && stripos($updateResult['error'] ?? '', 'expired') !== false;
+
+        if ($needsRefresh) {
+            $refreshResult = $this->getSupabase()->refreshSession($refreshToken);
+
+            if ($refreshResult['success']) {
+                $sessionData = $refreshResult['data'];
+                session_set('access_token', $sessionData['access_token']);
+                session_set('refresh_token', $sessionData['refresh_token'] ?? $refreshToken);
+                session_set('expires_in', $sessionData['expires_in'] ?? 3600);
+
+                $updateResult = $this->getSupabase()->updateUserPassword($newPassword, session_get('access_token'));
+            }
+        }
+
+        if (!$updateResult['success']) {
+            $errorMessage = $updateResult['error'] ?? 'Failed to change password.';
+
+            if (stripos($errorMessage, 'jwt') !== false && stripos($errorMessage, 'expired') !== false) {
+                redirect('/signin?error=' . urlencode('Your session expired. Please sign in again.'));
+            }
+
+            redirect('/account?error=' . urlencode('Failed to change password. Please try again.'));
+        }
+
+        $this->auditLog->logAuth($user['id'] ?? null, 'password_changed', 'account_security', [
+            'email' => $email,
+            'ip' => $_SERVER['REMOTE_ADDR'] ?? null,
+        ]);
+
+        $freshSignIn = $this->getSupabase()->signIn($email, $newPassword);
+        if ($freshSignIn['success']) {
+            $sessionData = $freshSignIn['data'];
+            session_set('access_token', $sessionData['access_token']);
+            session_set('refresh_token', $sessionData['refresh_token'] ?? null);
+            session_set('expires_in', $sessionData['expires_in'] ?? 3600);
+
+            if (!empty($sessionData['user'])) {
+                session_set('user', $sessionData['user']);
+            }
+        }
+
+        redirect('/account?success=' . urlencode('Password changed successfully.'));
+    }
 }
