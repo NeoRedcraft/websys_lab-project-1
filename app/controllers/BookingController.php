@@ -34,7 +34,57 @@ class BookingController
     public function listMyBookings($params = [])
     {
         $user = get_user();
+        $role = $this->userModel->getRole($user['id']);
+        $roleName = $role['name'] ?? null;
+
+        if ($roleName === 'system_admin') {
+            $allBookings = $this->bookingModel->getAll();
+            $organizations = $this->organizationModel->getAll();
+
+            $organizationMap = [];
+            foreach ($organizations as $organization) {
+                $organizationMap[(string) ($organization['id'] ?? '')] = $organization;
+            }
+
+            usort($allBookings, function ($a, $b) {
+                return strtotime($a['event_date'] ?? '') <=> strtotime($b['event_date'] ?? '');
+            });
+
+            $bookingsByOrg = [];
+            foreach ($allBookings as $booking) {
+                $organizationId = (string) ($booking['organization_id'] ?? $booking['org_id'] ?? 'unknown');
+                if (!isset($bookingsByOrg[$organizationId])) {
+                    $bookingsByOrg[$organizationId] = [
+                        'organization' => $organizationMap[$organizationId] ?? [
+                            'id' => $organizationId,
+                            'name' => 'Unknown Organization',
+                        ],
+                        'bookings' => [],
+                    ];
+                }
+
+                $bookingsByOrg[$organizationId]['bookings'][] = $booking;
+            }
+
+            uasort($bookingsByOrg, function ($left, $right) {
+                return strcasecmp($left['organization']['name'] ?? '', $right['organization']['name'] ?? '');
+            });
+
+            return view('admin/bookings-list', [
+                'bookingsByOrg' => $bookingsByOrg,
+                'csrfToken' => csrf_token(),
+            ]);
+        }
+
         $bookings = $this->bookingModel->getByOrganizer($user['id']);
+
+        foreach ($bookings as &$booking) {
+            $organizationId = $booking['organization_id'] ?? $booking['org_id'] ?? null;
+            if ($organizationId) {
+                $organization = $this->organizationModel->getById($organizationId);
+                $booking['org_name'] = $organization['name'] ?? ($booking['org_name'] ?? '');
+            }
+        }
 
         return view('bookings/my-bookings', [
             'bookings' => $bookings,
@@ -66,8 +116,7 @@ class BookingController
             $eventDate = $_POST['event_date'] ?? '';
             $venue = $_POST['venue'] ?? '';
             $technicalNeeds = $_POST['technical_needs'] ?? '';
-            $expectedAttendees = $_POST['expected_attendees'] ?? 0;
-            $additionalNotes = $_POST['additional_notes'] ?? '';
+            $accessToken = session_get('access_token');
 
             // Validate required fields
             if (!$orgId || !$eventName || !$eventDate || !$venue) {
@@ -91,20 +140,18 @@ class BookingController
 
             // Create booking request with pending status
             $bookingId = $this->bookingModel->create([
-                'user_id' => $user['id'],
-                'org_id' => $orgId,
+                'organizer_id' => $user['id'],
+                'organization_id' => $orgId,
                 'event_name' => $eventName,
                 'event_date' => $eventDate,
                 'venue' => $venue,
                 'technical_needs' => $technicalNeeds,
-                'expected_attendees' => $expectedAttendees,
-                'additional_notes' => $additionalNotes,
                 'status' => 'pending',
-            ]);
+            ], $accessToken);
 
             if (!$bookingId) {
                 return view('bookings/booking-form', [
-                    'error' => 'Failed to create booking request',
+                    'error' => $this->bookingModel->getLastError() ?: 'Failed to create booking request',
                     'organizations' => $this->organizationModel->getAll(),
                     'csrfToken' => csrf_token(),
                 ]);
@@ -142,17 +189,21 @@ class BookingController
         }
 
         // Verify user owns booking or is org admin for this org
-        $isOwner = $booking['user_id'] === $user['id'];
+        $bookingOwnerId = $booking['organizer_id'] ?? $booking['user_id'] ?? null;
+        $bookingOrgId = $booking['organization_id'] ?? $booking['org_id'] ?? null;
+        $isOwner = $bookingOwnerId === $user['id'];
         $userRole = $this->userModel->getRole($user['id']);
-        $isOrgAdmin = $userRole['name'] === 'org_admin' && $booking['org_id'] === $user['org_id'];
+        $userRecord = $this->userModel->getById($user['id']);
+        $userOrgId = $userRecord['org_id'] ?? null;
+        $isOrgAdmin = ($userRole['name'] ?? '') === 'org_admin' && (string) $bookingOrgId === (string) $userOrgId;
 
         if (!$isOwner && !$isOrgAdmin) {
             http_response_code(403);
             return 'Unauthorized to view this booking';
         }
 
-        $organization = $this->organizationModel->getById($booking['org_id']);
-        $organizer = $this->userModel->getById($booking['user_id']);
+        $organization = $this->organizationModel->getById($bookingOrgId);
+        $organizer = $this->userModel->getById($bookingOwnerId);
 
         return view('bookings/booking-detail', [
             'booking' => $booking,
@@ -183,7 +234,8 @@ class BookingController
         }
 
         // Only owner can edit their booking
-        if ($booking['user_id'] !== $user['id']) {
+        $bookingOwnerId = $booking['organizer_id'] ?? $booking['user_id'] ?? null;
+        if ($bookingOwnerId !== $user['id']) {
             http_response_code(403);
             return 'Unauthorized to edit this booking';
         }
@@ -211,8 +263,7 @@ class BookingController
             $eventDate = $_POST['event_date'] ?? $booking['event_date'];
             $venue = $_POST['venue'] ?? $booking['venue'];
             $technicalNeeds = $_POST['technical_needs'] ?? $booking['technical_needs'];
-            $expectedAttendees = $_POST['expected_attendees'] ?? $booking['expected_attendees'];
-            $additionalNotes = $_POST['additional_notes'] ?? $booking['additional_notes'];
+            $accessToken = session_get('access_token');
 
             if (!$eventName || !$eventDate || !$venue) {
                 return view('bookings/booking-form', [
@@ -228,15 +279,13 @@ class BookingController
                 'event_date' => $eventDate,
                 'venue' => $venue,
                 'technical_needs' => $technicalNeeds,
-                'expected_attendees' => $expectedAttendees,
-                'additional_notes' => $additionalNotes,
                 'updated_at' => date('Y-m-d H:i:s'),
-            ]);
+            ], $accessToken);
 
             if (!$updated) {
                 return view('bookings/booking-form', [
                     'booking' => $booking,
-                    'error' => 'Failed to update booking',
+                    'error' => $this->bookingModel->getLastError() ?: 'Failed to update booking',
                     'organizations' => $this->organizationModel->getAll(),
                     'csrfToken' => csrf_token(),
                 ]);
@@ -276,7 +325,8 @@ class BookingController
         }
 
         // Only owner can delete their booking
-        if ($booking['user_id'] !== $user['id']) {
+        $bookingOwnerId = $booking['organizer_id'] ?? $booking['user_id'] ?? null;
+        if ($bookingOwnerId !== $user['id']) {
             return ['error' => 'Unauthorized'];
         }
 

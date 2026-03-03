@@ -160,6 +160,42 @@ CREATE POLICY "System admins can view all bookings" ON booking_requests
     )
   );
 
+CREATE POLICY "Organizers can create their own bookings" ON booking_requests
+  FOR INSERT WITH CHECK (
+    organizer_id = auth.uid()
+    OR EXISTS (
+      SELECT 1 FROM users_extended
+      WHERE id = auth.uid()
+      AND role_id = (SELECT id FROM roles WHERE name = 'system_admin')
+    )
+  );
+
+CREATE POLICY "Organizers can update their own bookings" ON booking_requests
+  FOR UPDATE USING (
+    organizer_id = auth.uid()
+    OR EXISTS (
+      SELECT 1 FROM users_extended
+      WHERE id = auth.uid()
+      AND org_id = booking_requests.organization_id
+      AND role_id = (SELECT id FROM roles WHERE name = 'org_admin')
+    )
+    OR EXISTS (
+      SELECT 1 FROM users_extended
+      WHERE id = auth.uid()
+      AND role_id = (SELECT id FROM roles WHERE name = 'system_admin')
+    )
+  );
+
+CREATE POLICY "Organizers can delete their own bookings" ON booking_requests
+  FOR DELETE USING (
+    organizer_id = auth.uid()
+    OR EXISTS (
+      SELECT 1 FROM users_extended
+      WHERE id = auth.uid()
+      AND role_id = (SELECT id FROM roles WHERE name = 'system_admin')
+    )
+  );
+
 -- Audit Logs RLS Policies
 ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
 

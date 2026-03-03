@@ -18,7 +18,7 @@ ob_start();
             <select name="org_id" class="mt-1 block w-full border rounded px-3 py-2">
                 <option value="">Select organization</option>
                 <?php foreach (($organizations ?? []) as $org): ?>
-                    <option value="<?= $org['id'] ?>" <?= ((isset($booking) && $booking['org_id'] == $org['id']) || (!isset($booking) && !empty($selectedOrgId) && $selectedOrgId == $org['id'])) ? 'selected' : '' ?>><?= htmlspecialchars($org['name']) ?></option>
+                    <option value="<?= $org['id'] ?>" <?= ((isset($booking) && (($booking['organization_id'] ?? $booking['org_id'] ?? null) == $org['id'])) || (!isset($booking) && !empty($selectedOrgId) && $selectedOrgId == $org['id'])) ? 'selected' : '' ?>><?= htmlspecialchars($org['name']) ?></option>
                 <?php endforeach; ?>
             </select>
         </div>

@@ -7,6 +7,19 @@ use App\Utils\Supabase;
 class BookingRequest
 {
     private $supabase;
+    private $lastError = null;
+
+    private function resolveHeaders($accessToken = null)
+    {
+        $token = $accessToken ?: session_get('access_token');
+        if (!$token) {
+            return [];
+        }
+
+        return [
+            'Authorization' => 'Bearer ' . $token,
+        ];
+    }
 
     public function __construct()
     {
@@ -16,11 +29,12 @@ class BookingRequest
     /**
      * Get booking request by ID
      */
-    public function getById($requestId)
+    public function getById($requestId, $accessToken = null)
     {
         try {
-            $response = $this->supabase->query('booking_requests', '*', ['id' => $requestId]);
-            return $response['success'] ? $response['data'][0] ?? null : null;
+            $endpoint = '/rest/v1/booking_requests?select=*&id=eq.' . urlencode((string) $requestId) . '&limit=1';
+            $response = $this->supabase->makeRequest('GET', $endpoint, [], $this->resolveHeaders($accessToken));
+            return is_array($response) ? ($response[0] ?? null) : null;
         } catch (\Exception $e) {
             error_log('Error fetching booking: ' . $e->getMessage());
             return null;
@@ -30,14 +44,14 @@ class BookingRequest
     /**
      * Get all booking requests by organizer
      */
-    public function getByOrganizer($organizerId)
+    public function getByOrganizer($organizerId, $accessToken = null)
     {
         try {
             // Note: Supabase query builder needs to be enhanced to support complex filters
             // For now, we'll fetch and filter client-side
             $url = $this->supabase->getUrl() . "/rest/v1/booking_requests?organizer_id=eq.{$organizerId}";
             
-            $response = $this->supabase->makeRequest('GET', $url);
+            $response = $this->supabase->makeRequest('GET', $url, [], $this->resolveHeaders($accessToken));
             return is_array($response) ? $response : [];
         } catch (\Exception $e) {
             error_log('Error fetching organizer bookings: ' . $e->getMessage());
@@ -48,12 +62,12 @@ class BookingRequest
     /**
      * Get all booking requests for an organization
      */
-    public function getByOrganization($organizationId)
+    public function getByOrganization($organizationId, $accessToken = null)
     {
         try {
             $url = $this->supabase->getUrl() . "/rest/v1/booking_requests?organization_id=eq.{$organizationId}";
             
-            $response = $this->supabase->makeRequest('GET', $url);
+            $response = $this->supabase->makeRequest('GET', $url, [], $this->resolveHeaders($accessToken));
             return is_array($response) ? $response : [];
         } catch (\Exception $e) {
             error_log('Error fetching organization bookings: ' . $e->getMessage());
@@ -64,12 +78,12 @@ class BookingRequest
     /**
      * Get all booking requests (for admin audit)
      */
-    public function getAll()
+    public function getAll($accessToken = null)
     {
         try {
             $url = $this->supabase->getUrl() . "/rest/v1/booking_requests";
             
-            $response = $this->supabase->makeRequest('GET', $url);
+            $response = $this->supabase->makeRequest('GET', $url, [], $this->resolveHeaders($accessToken));
             return is_array($response) ? $response : [];
         } catch (\Exception $e) {
             error_log('Error fetching all bookings: ' . $e->getMessage());
@@ -83,6 +97,7 @@ class BookingRequest
     public function create($data, $accessToken = null)
     {
         try {
+            $this->lastError = null;
             $bookingData = array_merge($data, [
                 'created_at' => date('Y-m-d H:i:s'),
                 'updated_at' => date('Y-m-d H:i:s'),
@@ -90,8 +105,14 @@ class BookingRequest
             ]);
 
             $response = $this->supabase->insert('booking_requests', $bookingData, $accessToken);
-            return $response['success'] ? ($response['data'][0]['id'] ?? true) : false;
+            if (!$response['success']) {
+                $this->lastError = $response['error'] ?? 'Failed to create booking request';
+                return false;
+            }
+
+            return $response['data'][0]['id'] ?? true;
         } catch (\Exception $e) {
+            $this->lastError = $e->getMessage();
             error_log('Error creating booking: ' . $e->getMessage());
             return false;
         }
@@ -103,13 +124,25 @@ class BookingRequest
     public function update($requestId, $data, $accessToken = null)
     {
         try {
+            $this->lastError = null;
             $data['updated_at'] = date('Y-m-d H:i:s');
             $response = $this->supabase->update('booking_requests', $requestId, $data, $accessToken);
-            return $response['success'];
+            if (!$response['success']) {
+                $this->lastError = $response['error'] ?? 'Failed to update booking request';
+                return false;
+            }
+
+            return true;
         } catch (\Exception $e) {
+            $this->lastError = $e->getMessage();
             error_log('Error updating booking: ' . $e->getMessage());
             return false;
         }
+    }
+
+    public function getLastError()
+    {
+        return $this->lastError;
     }
 
     /**
@@ -193,10 +226,10 @@ class BookingRequest
     /**
      * Get booking statistics
      */
-    public function getStats($orgId = null)
+    public function getStats($orgId = null, $accessToken = null)
     {
         try {
-            $all = $orgId ? $this->getByOrganization($orgId) : $this->getAll();
+            $all = $orgId ? $this->getByOrganization($orgId, $accessToken) : $this->getAll($accessToken);
             
             return [
                 'total' => count($all),

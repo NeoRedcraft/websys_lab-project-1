@@ -64,7 +64,15 @@ class OrgAdminController
     public function viewProfile($params = [])
     {
         $user = get_user();
-        $organization = $this->organizationModel->getById($user['org_id']);
+        $userRecord = $this->userModel->getById($user['id']);
+        $orgId = $userRecord['org_id'] ?? null;
+
+        if (!$orgId) {
+            http_response_code(403);
+            return view('error/403', ['message' => 'No organization assigned to this user']);
+        }
+
+        $organization = $this->organizationModel->getById($orgId);
 
         if (!$organization) {
             http_response_code(404);
@@ -83,7 +91,13 @@ class OrgAdminController
     public function editProfile($params = [])
     {
         $user = get_user();
-        $orgId = $user['org_id'];
+        $userRecord = $this->userModel->getById($user['id']);
+        $orgId = $userRecord['org_id'] ?? null;
+
+        if (!$orgId) {
+            http_response_code(403);
+            return view('error/403', ['message' => 'No organization assigned to this user']);
+        }
 
         $organization = $this->organizationModel->getById($orgId);
         if (!$organization) {
@@ -104,13 +118,30 @@ class OrgAdminController
             $technicalRequirements = $_POST['technical_requirements'] ?? $organization['technical_requirements'];
             $youtubeLinks = $_POST['youtube_links'] ?? $organization['youtube_links'];
 
-            $updated = $this->organizationModel->update($orgId, [
+            $updateData = [
                 'bio' => $bio,
                 'genre' => $genre,
                 'technical_requirements' => $technicalRequirements,
                 'youtube_links' => $youtubeLinks,
                 'updated_at' => date('Y-m-d H:i:s'),
-            ]);
+            ];
+
+            if (!empty($_FILES['image']['name'])) {
+                try {
+                    $imageUrl = $this->organizationModel->uploadImage($orgId, $_FILES['image']);
+                    if ($imageUrl) {
+                        $updateData['image_url'] = $imageUrl;
+                    }
+                } catch (\Exception $e) {
+                    return view('org/profile-form', [
+                        'organization' => $organization,
+                        'error' => $e->getMessage(),
+                        'csrfToken' => csrf_token(),
+                    ]);
+                }
+            }
+
+            $updated = $this->organizationModel->update($orgId, $updateData);
 
             if (!$updated) {
                 return view('org/profile-form', [
@@ -133,6 +164,7 @@ class OrgAdminController
                     'genre' => $genre,
                     'technical_requirements' => $technicalRequirements,
                     'youtube_links' => $youtubeLinks,
+                    'image_url' => $updateData['image_url'] ?? ($organization['image_url'] ?? null),
                 ]),
                 'success' => 'Profile updated successfully',
                 'csrfToken' => csrf_token(),
