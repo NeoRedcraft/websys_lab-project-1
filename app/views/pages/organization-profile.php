@@ -6,13 +6,24 @@ ob_start();
 <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
     <!-- Header -->
     <div class="bg-gradient-to-r from-red-600 to-red-700 rounded-lg p-8 text-white mb-8">
-        <div class="flex items-start justify-between">
+        <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-6">
             <div>
                 <h1 class="text-4xl font-bold mb-2"><?php echo htmlspecialchars($organization['name']); ?></h1>
                 <?php if ($organization['genre']): ?>
                     <p class="text-red-100 text-lg mb-4"><?php echo htmlspecialchars($organization['genre']); ?></p>
                 <?php endif; ?>
             </div>
+
+            <?php if (!empty($organization['image_url'])): ?>
+                <div class="w-full md:w-72 lg:w-80 shrink-0">
+                    <img
+                        src="<?php echo htmlspecialchars($organization['image_url']); ?>"
+                        alt="<?php echo htmlspecialchars($organization['name']); ?>"
+                        class="w-full h-44 md:h-48 object-cover rounded-lg border border-red-300/40"
+                        loading="lazy"
+                    >
+                </div>
+            <?php endif; ?>
         </div>
     </div>
 

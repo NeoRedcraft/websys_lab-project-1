@@ -35,7 +35,57 @@ class AdminController
             'auditLogs' => $auditLogs,
             'organizations' => $organizations,
             'csrfToken' => csrf_token(),
+            'homeBannerUrl' => get_home_banner_url(),
+            'success' => $_GET['success'] ?? null,
+            'error' => $_GET['error'] ?? null,
         ]);
+    }
+
+    public function uploadHomeBanner($params = [])
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            http_response_code(405);
+            return 'Method not allowed';
+        }
+
+        if (empty($_FILES['home_banner']['tmp_name']) || !isset($_FILES['home_banner']['error']) || $_FILES['home_banner']['error'] !== UPLOAD_ERR_OK) {
+            redirect('/admin/dashboard?error=' . urlencode('Upload failed. Please choose a valid image file.'));
+        }
+
+        $file = $_FILES['home_banner'];
+        $mimeType = mime_content_type($file['tmp_name']);
+        $allowedTypes = [
+            'image/jpeg' => 'jpg',
+            'image/png' => 'png',
+            'image/webp' => 'webp',
+            'image/gif' => 'gif',
+        ];
+
+        if (!isset($allowedTypes[$mimeType])) {
+            redirect('/admin/dashboard?error=' . urlencode('Invalid image type. Use JPG, PNG, WEBP, or GIF.'));
+        }
+
+        if ((int) $file['size'] > 5 * 1024 * 1024) {
+            redirect('/admin/dashboard?error=' . urlencode('Image is too large. Maximum size is 5MB.'));
+        }
+
+        $uploadsDir = base_path('uploads');
+        if (!is_dir($uploadsDir) && !mkdir($uploadsDir, 0755, true)) {
+            redirect('/admin/dashboard?error=' . urlencode('Could not create uploads directory.'));
+        }
+
+        foreach (glob($uploadsDir . '/home-banner.*') ?: [] as $existingFile) {
+            @unlink($existingFile);
+        }
+
+        $extension = $allowedTypes[$mimeType];
+        $targetPath = $uploadsDir . '/home-banner.' . $extension;
+
+        if (!move_uploaded_file($file['tmp_name'], $targetPath)) {
+            redirect('/admin/dashboard?error=' . urlencode('Failed to save uploaded image.'));
+        }
+
+        redirect('/admin/dashboard?success=' . urlencode('Home banner image updated.'));
     }
 
     public function listOrganizations($params = [])
@@ -95,10 +145,22 @@ class AdminController
                 try {
                     $imageUrl = $this->organizationModel->uploadImage($result, $_FILES['image']);
                     if ($imageUrl) {
-                        $this->organizationModel->update($result, ['image_url' => $imageUrl]);
+                        $savedImageRef = $this->organizationModel->saveImageReference($result, $imageUrl);
+                        if (!$savedImageRef) {
+                            return view('admin/organization-form', [
+                                'error' => 'Organization created, but image could not be saved. Please ensure the organizations table has an image_url column.',
+                                'organization' => $this->organizationModel->getById($result),
+                                'csrfToken' => csrf_token(),
+                            ]);
+                        }
                     }
                 } catch (\Exception $e) {
                     error_log('Image upload failed: ' . $e->getMessage());
+                    return view('admin/organization-form', [
+                        'error' => 'Organization created, but image upload failed: ' . $e->getMessage(),
+                        'organization' => $this->organizationModel->getById($result),
+                        'csrfToken' => csrf_token(),
+                    ]);
                 }
             }
 
@@ -155,10 +217,22 @@ class AdminController
                 try {
                     $imageUrl = $this->organizationModel->uploadImage($orgId, $_FILES['image']);
                     if ($imageUrl) {
-                        $updateData['image_url'] = $imageUrl;
+                        $savedImageRef = $this->organizationModel->saveImageReference($orgId, $imageUrl);
+                        if (!$savedImageRef) {
+                            return view('admin/organization-form', [
+                                'organization' => $organization,
+                                'error' => 'Image uploaded, but could not save image reference. Please ensure the organizations table has an image_url column.',
+                                'csrfToken' => csrf_token(),
+                            ]);
+                        }
                     }
                 } catch (\Exception $e) {
                     error_log('Image upload failed: ' . $e->getMessage());
+                    return view('admin/organization-form', [
+                        'organization' => $organization,
+                        'error' => 'Image upload failed: ' . $e->getMessage(),
+                        'csrfToken' => csrf_token(),
+                    ]);
                 }
             }
 

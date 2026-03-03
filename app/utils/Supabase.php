@@ -442,12 +442,205 @@ class Supabase
         ]);
 
         $response = @file_get_contents($url, false, $context);
-        $decoded = json_decode($response, true);
+        $statusCode = 0;
+        if (!empty($http_response_header) && preg_match('/\s(\d{3})\s/', $http_response_header[0], $matches)) {
+            $statusCode = (int) $matches[1];
+        }
 
-        if (isset($decoded['error'])) {
+        if ($response === false) {
+            throw new \Exception('Upload failed: unable to connect to Supabase Storage');
+        }
+
+        $decoded = json_decode((string) $response, true);
+
+        if ($statusCode < 200 || $statusCode >= 300) {
+            $message = is_array($decoded)
+                ? ($decoded['message'] ?? $decoded['error'] ?? $decoded['msg'] ?? null)
+                : null;
+            throw new \Exception('Upload failed' . ($message ? ': ' . $message : ' (HTTP ' . $statusCode . ')'));
+        }
+
+        if (is_array($decoded) && isset($decoded['error'])) {
             throw new \Exception($decoded['error'] ?? 'Upload failed');
         }
 
         return $this->supabaseUrl . "/storage/v1/object/public/{$bucket}/{$path}";
+    }
+
+    public function getPublicStorageUrl($bucket, $path)
+    {
+        $safeBucket = trim((string) $bucket);
+        $safePath = ltrim((string) $path, '/');
+
+        if ($safeBucket === '' || $safePath === '') {
+            return null;
+        }
+
+        $encodedPath = implode('/', array_map('rawurlencode', explode('/', $safePath)));
+        return rtrim($this->supabaseUrl, '/') . "/storage/v1/object/public/{$safeBucket}/{$encodedPath}";
+    }
+
+    public function createSignedStorageUrl($bucket, $path, $expiresIn = 86400)
+    {
+        $safeBucket = trim((string) $bucket);
+        $safePath = ltrim((string) $path, '/');
+
+        if ($safeBucket === '' || $safePath === '') {
+            return null;
+        }
+
+        try {
+            $response = $this->adminRequest(
+                'POST',
+                '/storage/v1/object/sign/' . rawurlencode($safeBucket) . '/' . implode('/', array_map('rawurlencode', explode('/', $safePath))),
+                ['expiresIn' => (int) $expiresIn]
+            );
+
+            $signedPath = $response['signedURL'] ?? $response['signedUrl'] ?? null;
+            if (!$signedPath) {
+                return null;
+            }
+
+            if (strpos($signedPath, 'http') === 0) {
+                return $signedPath;
+            }
+
+            if (strpos($signedPath, '/object/') === 0) {
+                return rtrim($this->supabaseUrl, '/') . '/storage/v1' . $signedPath;
+            }
+
+            return rtrim($this->supabaseUrl, '/') . $signedPath;
+        } catch (\Exception $e) {
+            error_log('Failed to create signed storage URL: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    public function normalizeOrganizationImageUrl($value, $defaultBucket = 'organization-images')
+    {
+        $raw = trim((string) ($value ?? ''));
+        if ($raw === '') {
+            return null;
+        }
+
+        $bucket = $defaultBucket;
+        $path = null;
+
+        if (preg_match('#^https?://#i', $raw)) {
+            $supabaseHost = parse_url($this->supabaseUrl, PHP_URL_HOST);
+            $rawHost = parse_url($raw, PHP_URL_HOST);
+            $rawPath = parse_url($raw, PHP_URL_PATH) ?? '';
+
+            if ($supabaseHost && $rawHost && strtolower($supabaseHost) === strtolower($rawHost)) {
+                if (preg_match('#/storage/v1/object/(?:public|sign)/([^/]+)/(.+)$#', $rawPath, $matches)) {
+                    $bucket = urldecode($matches[1]);
+                    $path = urldecode($matches[2]);
+                } elseif (preg_match('#/storage/v1/object/([^/]+)/(.+)$#', $rawPath, $matches)) {
+                    $bucket = urldecode($matches[1]);
+                    $path = urldecode($matches[2]);
+                }
+            }
+
+            if (!$path) {
+                return $raw;
+            }
+        } else {
+            if (preg_match('#^([^/]+)/(.+)$#', $raw, $matches)) {
+                if (strpos($matches[1], '.') === false) {
+                    $bucket = $matches[1];
+                    $path = $matches[2];
+                } else {
+                    $path = $raw;
+                }
+            } else {
+                $path = $raw;
+            }
+        }
+
+        $signed = $this->createSignedStorageUrl($bucket, $path);
+        if ($signed) {
+            return $signed;
+        }
+
+        $public = $this->getPublicStorageUrl($bucket, $path);
+        return $public ?: $raw;
+    }
+
+    public function listStorageObjects($bucket, $prefix = '', $limit = 100)
+    {
+        $safeBucket = trim((string) $bucket);
+        if ($safeBucket === '') {
+            return [];
+        }
+
+        try {
+            $response = $this->adminRequest(
+                'POST',
+                '/storage/v1/object/list/' . rawurlencode($safeBucket),
+                [
+                    'prefix' => (string) $prefix,
+                    'limit' => (int) $limit,
+                    'offset' => 0,
+                ]
+            );
+
+            return is_array($response) ? $response : [];
+        } catch (\Exception $e) {
+            error_log('Failed to list storage objects: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    public function findLatestStorageObjectByPrefix($bucket, $prefix)
+    {
+        $objects = $this->listStorageObjects($bucket, $prefix, 200);
+        if (empty($objects)) {
+            return null;
+        }
+
+        usort($objects, function ($left, $right) {
+            $leftName = (string) ($left['name'] ?? '');
+            $rightName = (string) ($right['name'] ?? '');
+            return strcmp($rightName, $leftName);
+        });
+
+        $latestName = $objects[0]['name'] ?? null;
+        if (!$latestName) {
+            return null;
+        }
+
+        $safePrefix = trim((string) $prefix, '/');
+        return $safePrefix === '' ? $latestName : $safePrefix . $latestName;
+    }
+
+    public function publicStorageObjectExists($bucket, $path)
+    {
+        $url = $this->getPublicStorageUrl($bucket, $path);
+        if (!$url) {
+            return false;
+        }
+
+        $headers = @get_headers($url);
+        if (!is_array($headers) || empty($headers[0])) {
+            return false;
+        }
+
+        return (bool) preg_match('/\s(200|206)\s/', (string) $headers[0]);
+    }
+
+    public function findFirstExistingPublicStorageUrl($bucket, array $paths)
+    {
+        foreach ($paths as $path) {
+            $candidate = ltrim((string) $path, '/');
+            if ($candidate === '') {
+                continue;
+            }
+
+            if ($this->publicStorageObjectExists($bucket, $candidate)) {
+                return $this->getPublicStorageUrl($bucket, $candidate);
+            }
+        }
+
+        return null;
     }
 }

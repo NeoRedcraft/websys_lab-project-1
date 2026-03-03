@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS organizations (
   genre VARCHAR(100),
   technical_requirements TEXT,
   youtube_links TEXT,
+  image_url TEXT,
   is_active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

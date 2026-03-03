@@ -17,7 +17,16 @@ class Organization
     {
         try {
             $response = $this->supabase->query('organizations', '*', ['id' => $orgId]);
-            return $response['success'] ? $response['data'][0] ?? null : null;
+            if (!$response['success']) {
+                return null;
+            }
+
+            $organization = $response['data'][0] ?? null;
+            if (!$organization) {
+                return null;
+            }
+
+            return $this->normalizeImageUrl($organization);
         } catch (\Exception $e) {
             error_log('Error fetching organization: ' . $e->getMessage());
             return null;
@@ -28,7 +37,16 @@ class Organization
     {
         try {
             $response = $this->supabase->query('organizations', '*', ['is_active' => 'true']);
-            return $response['success'] ? $response['data'] : [];
+            if (!$response['success']) {
+                return [];
+            }
+
+            $organizations = is_array($response['data']) ? $response['data'] : [];
+            foreach ($organizations as &$organization) {
+                $organization = $this->normalizeImageUrl($organization);
+            }
+
+            return $organizations;
         } catch (\Exception $e) {
             error_log('Error fetching organizations: ' . $e->getMessage());
             return [];
@@ -62,6 +80,28 @@ class Organization
             error_log('Error updating organization: ' . $e->getMessage());
             return false;
         }
+    }
+
+    public function saveImageReference($orgId, $imageUrl, $accessToken = null)
+    {
+        $normalizedUrl = trim((string) $imageUrl);
+        if ($normalizedUrl === '') {
+            return false;
+        }
+
+        $candidateFields = ['image_url', 'image', 'logo_url'];
+
+        foreach ($candidateFields as $field) {
+            try {
+                if ($this->update($orgId, [$field => $normalizedUrl], $accessToken)) {
+                    return true;
+                }
+            } catch (\Exception $e) {
+                error_log('Failed saving image reference to field ' . $field . ': ' . $e->getMessage());
+            }
+        }
+
+        return false;
     }
 
     public function delete($orgId, $accessToken = null)
@@ -139,6 +179,10 @@ class Organization
                 return [];
             }
 
+            foreach ($organizations as &$organization) {
+                $organization = $this->normalizeImageUrl($organization);
+            }
+
             return $this->enrichOrganizations($organizations);
         } catch (\Exception $e) {
             error_log('Error searching organizations: ' . $e->getMessage());
@@ -175,9 +219,25 @@ class Organization
      */
     public function uploadImage($orgId, $file)
     {
-        if (empty($file['tmp_name']) || $file['error'] !== UPLOAD_ERR_OK) {
-            error_log('Upload error code: ' . ($file['error'] ?? 'no file'));
-            return null;
+        if (empty($file['tmp_name']) || !isset($file['error']) || $file['error'] !== UPLOAD_ERR_OK) {
+            $uploadError = $file['error'] ?? null;
+            error_log('Upload error code: ' . ($uploadError ?? 'no file'));
+
+            $messages = [
+                UPLOAD_ERR_INI_SIZE => 'Upload failed: file exceeds server upload_max_filesize limit.',
+                UPLOAD_ERR_FORM_SIZE => 'Upload failed: file exceeds MAX_FILE_SIZE limit.',
+                UPLOAD_ERR_PARTIAL => 'Upload failed: file was only partially uploaded.',
+                UPLOAD_ERR_NO_FILE => 'Upload failed: no file was selected.',
+                UPLOAD_ERR_NO_TMP_DIR => 'Upload failed: missing temporary upload directory on server.',
+                UPLOAD_ERR_CANT_WRITE => 'Upload failed: server cannot write uploaded file to disk.',
+                UPLOAD_ERR_EXTENSION => 'Upload failed: a PHP extension stopped the upload.',
+            ];
+
+            if (isset($messages[$uploadError])) {
+                throw new \Exception($messages[$uploadError]);
+            }
+
+            throw new \Exception('Upload failed due to an unknown server upload error.');
         }
 
         $allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
@@ -195,8 +255,19 @@ class Organization
             throw new \Exception('File too large. Maximum 2MB.');
         }
 
-        $ext = pathinfo($file['name'], PATHINFO_EXTENSION);
-        $path = "org-{$orgId}-" . time() . '.' . $ext;
+        $extensionMap = [
+            'image/jpeg' => 'jpg',
+            'image/png' => 'png',
+            'image/gif' => 'gif',
+            'image/webp' => 'webp',
+        ];
+
+        $ext = $extensionMap[$mimeType] ?? strtolower((string) pathinfo((string) ($file['name'] ?? ''), PATHINFO_EXTENSION));
+        if ($ext === '') {
+            $ext = 'jpg';
+        }
+
+        $path = 'org-' . (int) $orgId . '.' . $ext;
         $fileContent = file_get_contents($file['tmp_name']);
 
         error_log('Attempting upload to bucket: organization-images, path: ' . $path);
@@ -211,6 +282,7 @@ class Organization
         $bookingModel = new BookingRequest();
 
         foreach ($organizations as &$org) {
+            $org = $this->normalizeImageUrl($org);
             $org['admin'] = $this->getAdmin($org['id']);
 
             $bookings = $bookingModel->getByOrganization($org['id']);
@@ -221,5 +293,53 @@ class Organization
         }
 
         return $organizations;
+    }
+
+    private function normalizeImageUrl(array $organization)
+    {
+        $rawImage = $organization['image_url']
+            ?? $organization['image']
+            ?? $organization['logo_url']
+            ?? null;
+
+        if (empty($rawImage) && !empty($organization['id'])) {
+            $publicUrl = $this->getDeterministicPublicImageUrl((int) $organization['id']);
+            if ($publicUrl) {
+                $organization['image_url'] = $publicUrl;
+                return $organization;
+            }
+
+            $rawImage = $this->getLatestUploadedImagePath((int) $organization['id']);
+        }
+
+        if (!empty($rawImage)) {
+            $organization['image_url'] = $this->supabase->normalizeOrganizationImageUrl($rawImage);
+        }
+
+        return $organization;
+    }
+
+    private function getLatestUploadedImagePath($orgId)
+    {
+        $prefix = 'org-' . (int) $orgId . '-';
+        return $this->supabase->findLatestStorageObjectByPrefix('organization-images', $prefix);
+    }
+
+    private function getDeterministicPublicImageUrl($orgId)
+    {
+        $orgId = (int) $orgId;
+        if ($orgId <= 0) {
+            return null;
+        }
+
+        $candidatePaths = [
+            'org-' . $orgId . '.jpg',
+            'org-' . $orgId . '.jpeg',
+            'org-' . $orgId . '.png',
+            'org-' . $orgId . '.webp',
+            'org-' . $orgId . '.gif',
+        ];
+
+        return $this->supabase->findFirstExistingPublicStorageUrl('organization-images', $candidatePaths);
     }
 }

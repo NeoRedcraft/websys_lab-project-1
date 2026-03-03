@@ -36,6 +36,7 @@ $router->post('/admin/organizations/create', 'AdminController@createOrganization
 $router->get('/admin/organizations/edit/{id}', 'AdminController@editOrganization');
 $router->post('/admin/organizations/edit/{id}', 'AdminController@editOrganization');
 $router->post('/admin/organizations/delete', 'AdminController@deleteOrganization');
+$router->post('/admin/home-banner/upload', 'AdminController@uploadHomeBanner');
 
 // User Management
 $router->get('/admin/users', 'AdminController@listUsers');

@@ -40,12 +40,23 @@ ob_start();
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <?php foreach ($organizations as $organization): ?>
                 <div class="bg-white rounded-lg shadow-md overflow-hidden">
-                    <div class="bg-gradient-to-r from-red-600 to-red-700 h-40 flex items-center justify-center">
-                        <div class="text-center text-white">
-                            <div class="text-3xl font-bold"><?php echo htmlspecialchars(substr($organization['name'], 0, 1)); ?></div>
-                            <div class="text-sm mt-2"><?php echo htmlspecialchars($organization['genre'] ?: 'Organization'); ?></div>
+                    <?php if (!empty($organization['image_url'])): ?>
+                        <div class="h-40 overflow-hidden">
+                            <img
+                                src="<?php echo htmlspecialchars($organization['image_url']); ?>"
+                                alt="<?php echo htmlspecialchars($organization['name']); ?>"
+                                class="w-full h-full object-cover"
+                                loading="lazy"
+                            >
                         </div>
-                    </div>
+                    <?php else: ?>
+                        <div class="bg-gradient-to-r from-red-600 to-red-700 h-40 flex items-center justify-center">
+                            <div class="text-center text-white">
+                                <div class="text-3xl font-bold"><?php echo htmlspecialchars(substr($organization['name'], 0, 1)); ?></div>
+                                <div class="text-sm mt-2"><?php echo htmlspecialchars($organization['genre'] ?: 'Organization'); ?></div>
+                            </div>
+                        </div>
+                    <?php endif; ?>
                     <div class="p-5">
                         <h2 class="text-lg font-bold mb-2"><?php echo htmlspecialchars($organization['name']); ?></h2>
                         <p class="text-sm text-gray-600 mb-3">

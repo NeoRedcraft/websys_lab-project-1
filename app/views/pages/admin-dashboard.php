@@ -6,6 +6,13 @@ ob_start();
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
     <h1 class="text-4xl font-bold mb-8">Admin Dashboard</h1>
 
+    <?php if (!empty($success)): ?>
+        <div class="mb-6 bg-green-50 border border-green-200 text-green-800 p-3 rounded"><?php echo htmlspecialchars($success); ?></div>
+    <?php endif; ?>
+    <?php if (!empty($error)): ?>
+        <div class="mb-6 bg-red-50 border border-red-200 text-red-800 p-3 rounded"><?php echo htmlspecialchars($error); ?></div>
+    <?php endif; ?>
+
     <?php
     $orgs = isset($organizations) ? $organizations : [];
     $logs = isset($auditLogs) ? $auditLogs : [];
@@ -30,6 +37,22 @@ ob_start();
             <h3 class="text-lg font-medium mb-2">Accepted</h3>
             <p class="text-3xl font-bold text-red-600"><?php echo isset($stats['accepted']) ? $stats['accepted'] : '-'; ?></p>
         </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+        <h2 class="text-2xl font-bold mb-4">Home Banner Image</h2>
+        <?php if (!empty($homeBannerUrl)): ?>
+            <img src="<?php echo htmlspecialchars($homeBannerUrl); ?>" alt="Home banner preview" class="w-full h-52 object-cover rounded mb-4">
+        <?php else: ?>
+            <p class="text-gray-600 mb-4">No custom home banner uploaded yet. The default red banner is currently in use.</p>
+        <?php endif; ?>
+
+        <form method="post" action="/admin/home-banner/upload" enctype="multipart/form-data" class="flex flex-col md:flex-row gap-3 md:items-center">
+            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken ?? ''); ?>">
+            <input type="file" name="home_banner" accept="image/*" class="block w-full md:w-auto border rounded px-3 py-2" required>
+            <button type="submit" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">Upload Banner</button>
+        </form>
+        <p class="text-xs text-gray-500 mt-2">Accepted: JPG, PNG, WEBP, GIF. Max 5MB.</p>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">

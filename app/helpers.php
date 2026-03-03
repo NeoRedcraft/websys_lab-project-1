@@ -174,3 +174,20 @@ function get_display_name($user)
 
     return 'User';
 }
+
+function get_home_banner_url()
+{
+    $extensions = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
+
+    foreach ($extensions as $extension) {
+        $relativePath = 'uploads/home-banner.' . $extension;
+        $absolutePath = base_path($relativePath);
+
+        if (file_exists($absolutePath)) {
+            $version = (string) @filemtime($absolutePath);
+            return '/' . $relativePath . ($version !== '' ? ('?v=' . $version) : '');
+        }
+    }
+
+    return null;
+}

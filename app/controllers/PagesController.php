@@ -9,6 +9,7 @@ class PagesController
         return view('pages/home', [
             'isAuthenticated' => auth_check(),
             'user' => get_user(),
+            'homeBannerUrl' => get_home_banner_url(),
         ]);
     }
 

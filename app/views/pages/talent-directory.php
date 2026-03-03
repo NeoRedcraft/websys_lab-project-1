@@ -61,7 +61,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const bio = (organization.bio || '').trim();
             const summary = bio ? (bio.length > 140 ? bio.substring(0, 140) + '...' : bio) : 'Professional performing organization';
             const upcomingCount = Number(organization.upcoming_bookings_count || 0);
-            const imageUrl = organization.image_url || '';
+            const imageUrl = organization.image_url || organization.image || organization.logo_url || '';
 
             const banner = imageUrl
                 ? '<div class="h-40 overflow-hidden">'

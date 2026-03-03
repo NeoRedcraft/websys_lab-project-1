@@ -3,6 +3,35 @@ $title = 'Home - Cardinal Stage';
 ob_start();
 ?>
 
+<?php if (!empty($homeBannerUrl)): ?>
+<div class="relative text-white py-20 bg-cover bg-center" style="background-image: url('<?php echo htmlspecialchars($homeBannerUrl); ?>');">
+    <div class="absolute inset-0 bg-black opacity-40"></div>
+    <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <h1 class="text-4xl md:text-5xl font-bold mb-4">Welcome to Cardinal Stage</h1>
+        <p class="text-xl mb-8 text-gray-100">Discover and manage talent for your events</p>
+        
+        <?php if (!$isAuthenticated): ?>
+            <div class="flex gap-4">
+                <a href="/signup" class="bg-white text-red-600 px-6 py-3 rounded-lg font-bold hover:bg-red-50">
+                    Get Started
+                </a>
+                <a href="/signin" class="border-2 border-white text-white px-6 py-3 rounded-lg font-bold hover:bg-white hover:bg-opacity-10">
+                    Sign In
+                </a>
+            </div>
+        <?php else: ?>
+            <div class="flex gap-4">
+                <a href="/dashboard" class="bg-white text-red-600 px-6 py-3 rounded-lg font-bold hover:bg-red-50">
+                    Go to Dashboard
+                </a>
+                <a href="/directory" class="border-2 border-white text-white px-6 py-3 rounded-lg font-bold hover:bg-white hover:bg-opacity-10">
+                    View Talent Directory
+                </a>
+            </div>
+        <?php endif; ?>
+    </div>
+</div>
+<?php else: ?>
 <div class="bg-gradient-to-r from-red-600 to-red-700 text-white py-20">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <h1 class="text-4xl md:text-5xl font-bold mb-4">Welcome to Cardinal Stage</h1>
@@ -29,6 +58,7 @@ ob_start();
         <?php endif; ?>
     </div>
 </div>
+<?php endif; ?>
 
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
     <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
