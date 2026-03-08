@@ -56,6 +56,8 @@ $router->get('/org-admin', 'OrgAdminController@dashboard');
 $router->get('/org-admin/profile', 'OrgAdminController@viewProfile');
 $router->get('/org-admin/profile/edit', 'OrgAdminController@editProfile');
 $router->post('/org-admin/profile/edit', 'OrgAdminController@editProfile');
+$router->post('/org-admin/profile/accept-admin-changes', 'OrgAdminController@acceptAdminProfileChanges');
+$router->post('/org-admin/profile/decline-admin-changes', 'OrgAdminController@declineAdminProfileChanges');
 
 // Booking Inbox
 $router->get('/org-admin/bookings', 'OrgAdminController@inboxBookings');

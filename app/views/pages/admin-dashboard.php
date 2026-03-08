@@ -4,7 +4,10 @@ ob_start();
 ?>
 
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-    <h1 class="text-4xl font-bold mb-8">Admin Dashboard</h1>
+    <div class="mb-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h1 class="text-4xl font-bold">Admin Dashboard</h1>
+        <a href="/admin/organizations" class="inline-flex items-center justify-center bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">Manage Organizations</a>
+    </div>
 
     <?php if (!empty($success)): ?>
         <div class="mb-6 bg-green-50 border border-green-200 text-green-800 p-3 rounded"><?php echo htmlspecialchars($success); ?></div>

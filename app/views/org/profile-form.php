@@ -6,7 +6,10 @@ ob_start();
 <div class="max-w-4xl mx-auto p-6">
     <div class="flex items-center justify-between mb-6">
         <h1 class="text-3xl font-bold">Edit Organization Profile</h1>
-        <a href="/org-admin/profile" class="text-gray-700 hover:text-gray-900">Back to Profile</a>
+        <div class="flex items-center gap-3">
+            <a href="/org-admin/dashboard" class="inline-flex items-center rounded border border-gray-300 px-4 py-2 text-gray-700 hover:bg-gray-50">Back to Org Dashboard</a>
+            <a href="/org-admin/profile" class="text-gray-700 hover:text-gray-900">Back to Profile</a>
+        </div>
     </div>
 
     <?php if (!empty($success)): ?>
@@ -21,8 +24,19 @@ ob_start();
         </div>
     <?php endif; ?>
 
+    <?php if (!empty($reviewState['hasPending'])): ?>
+        <div class="mb-4 rounded border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900">
+            Your form is prefilled with the latest admin profile update so you can review and edit it before saving.
+        </div>
+    <?php endif; ?>
+
     <form method="POST" enctype="multipart/form-data" action="/org-admin/profile/edit" class="bg-white border rounded-lg shadow-sm p-6 space-y-5">
         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken ?? ''); ?>">
+
+        <div>
+            <label for="name" class="block text-sm font-medium text-gray-700 mb-1">Organization Name</label>
+            <input id="name" name="name" type="text" value="<?php echo htmlspecialchars($organization['name'] ?? ''); ?>" class="w-full rounded border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500">
+        </div>
 
         <div>
             <label for="image" class="block text-sm font-medium text-gray-700 mb-1">Organization Logo/Image</label>

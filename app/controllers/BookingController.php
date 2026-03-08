@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Models\Organization;
 use App\Models\BookingRequest;
 use App\Models\AuditLog;
+use App\Utils\Supabase;
 
 class BookingController
 {
@@ -15,6 +16,7 @@ class BookingController
     private $organizationModel;
     private $bookingModel;
     private $auditLog;
+    private $supabase;
 
     public function __construct()
     {
@@ -23,6 +25,7 @@ class BookingController
         $this->organizationModel = new Organization();
         $this->bookingModel = new BookingRequest();
         $this->auditLog = new AuditLog();
+        $this->supabase = null;
 
         // Require organizer role
         $this->gatekeeper->requireOrganizerAccess();
@@ -227,6 +230,10 @@ class BookingController
             ], $accessToken);
 
             if (!$bookingId) {
+                if ($invitationPdfUrl) {
+                    $this->deleteInvitationAsset($invitationPdfUrl);
+                }
+
                 return view('bookings/booking-form', [
                     'error' => $this->bookingModel->getLastError() ?: 'Failed to create booking request',
                     'organizations' => $this->organizationModel->getAll(),
@@ -393,6 +400,11 @@ class BookingController
                 ]);
             }
 
+            $previousInvitationPdfUrl = $booking['invitation_pdf_url'] ?? null;
+            if ($invitationPdfUrl !== $previousInvitationPdfUrl && !empty($previousInvitationPdfUrl)) {
+                $this->deleteInvitationAsset($previousInvitationPdfUrl);
+            }
+
             // FR-05: Log booking update
             $this->auditLog->logBooking($user['id'], 'updated', $bookingId, $booking, [
                 'event_name' => $eventName,
@@ -443,6 +455,11 @@ class BookingController
 
         if (!$deleted) {
             return ['error' => 'Failed to delete booking'];
+        }
+
+        $invitationPdfUrl = $booking['invitation_pdf_url'] ?? null;
+        if (!empty($invitationPdfUrl)) {
+            $this->deleteInvitationAsset($invitationPdfUrl);
         }
 
         // FR-05: Log booking deletion
@@ -504,6 +521,34 @@ class BookingController
             return [$existingUrl, 'Invitation file must be a valid PDF'];
         }
 
+        $storageDriver = strtolower((string) env('INVITATION_STORAGE_DRIVER', 'supabase'));
+
+        if ($storageDriver === 'supabase') {
+            try {
+                $supabase = $this->getSupabaseClient();
+                if (!$supabase) {
+                    return [$existingUrl, 'Supabase is not configured for invitation uploads'];
+                }
+
+                $bucket = trim((string) env('SUPABASE_INVITATIONS_BUCKET', 'invitations'));
+                $prefix = trim((string) env('SUPABASE_INVITATIONS_PREFIX', 'booking-invitations'), '/');
+                $objectPath = ($prefix !== '' ? ($prefix . '/') : '')
+                    . date('Y/m')
+                    . '/invitation_' . str_replace('.', '', uniqid('', true)) . '.pdf';
+
+                $fileContent = @file_get_contents($file['tmp_name']);
+                if ($fileContent === false) {
+                    return [$existingUrl, 'Failed to read invitation PDF'];
+                }
+
+                $uploadedUrl = $supabase->uploadFile($bucket, $objectPath, $fileContent, 'application/pdf');
+                return [$uploadedUrl, null];
+            } catch (\Exception $e) {
+                error_log('Invitation upload to Supabase failed: ' . $e->getMessage());
+                return [$existingUrl, 'Failed to upload invitation PDF to Supabase'];
+            }
+        }
+
         $uploadDir = base_path('uploads/invitations');
         if (!is_dir($uploadDir) && !mkdir($uploadDir, 0755, true)) {
             return [$existingUrl, 'Failed to create invitations upload directory'];
@@ -515,6 +560,51 @@ class BookingController
         }
 
         return ['/uploads/invitations/' . basename($targetFile), null];
+    }
+
+    private function deleteInvitationAsset($invitationPdfUrl)
+    {
+        if (!is_string($invitationPdfUrl) || $invitationPdfUrl === '') {
+            return false;
+        }
+
+        $supabase = $this->getSupabaseClient();
+        if ($supabase) {
+            $storageObject = $supabase->parseStorageObjectFromUrl($invitationPdfUrl, env('SUPABASE_INVITATIONS_BUCKET', 'invitations'));
+            if ($storageObject && !empty($storageObject['bucket']) && !empty($storageObject['path'])) {
+                return $supabase->deleteStorageObject($storageObject['bucket'], $storageObject['path']);
+            }
+        }
+
+        $path = parse_url($invitationPdfUrl, PHP_URL_PATH);
+        if (!is_string($path) || strpos($path, '/uploads/invitations/') !== 0) {
+            return false;
+        }
+
+        $normalizedPath = str_replace('/', DIRECTORY_SEPARATOR, ltrim($path, '/'));
+        $absolutePath = base_path($normalizedPath);
+
+        if (!is_file($absolutePath)) {
+            return false;
+        }
+
+        return @unlink($absolutePath);
+    }
+
+    private function getSupabaseClient()
+    {
+        if ($this->supabase !== null) {
+            return $this->supabase;
+        }
+
+        try {
+            $this->supabase = Supabase::getInstance();
+        } catch (\Exception $e) {
+            error_log('Supabase client unavailable: ' . $e->getMessage());
+            $this->supabase = false;
+        }
+
+        return $this->supabase ?: null;
     }
 
     /**

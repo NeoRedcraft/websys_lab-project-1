@@ -42,11 +42,16 @@ class Organization
             }
 
             $organizations = is_array($response['data']) ? $response['data'] : [];
+
             foreach ($organizations as &$organization) {
+                if (!is_array($organization)) {
+                    continue;
+                }
+
                 $organization = $this->normalizeImageUrl($organization);
             }
 
-            return $organizations;
+            return $this->sortOrganizationsByName($organizations);
         } catch (\Exception $e) {
             error_log('Error fetching organizations: ' . $e->getMessage());
             return [];
@@ -183,11 +188,20 @@ class Organization
                 $organization = $this->normalizeImageUrl($organization);
             }
 
-            return $this->enrichOrganizations($organizations);
+            return $this->sortOrganizationsByName($this->enrichOrganizations($organizations));
         } catch (\Exception $e) {
             error_log('Error searching organizations: ' . $e->getMessage());
             return [];
         }
+    }
+
+    private function sortOrganizationsByName(array $organizations)
+    {
+        usort($organizations, function ($left, $right) {
+            return strcasecmp((string) ($left['name'] ?? ''), (string) ($right['name'] ?? ''));
+        });
+
+        return $organizations;
     }
 
     public function getWithAcceptedBookings($orgId)
@@ -287,12 +301,38 @@ class Organization
 
             $bookings = $bookingModel->getByOrganization($org['id']);
             $org['bookings'] = $bookings;
-            $org['upcoming_bookings_count'] = count(array_filter($bookings, function($booking) {
-                return $booking['status'] === 'accepted' && strtotime($booking['event_date']) >= time();
-            }));
+            $org['upcoming_bookings_count'] = $this->getUpcomingAcceptedBookingsCount((int) ($org['id'] ?? 0), $bookings);
         }
 
         return $organizations;
+    }
+
+    private function getUpcomingAcceptedBookingsCount($orgId, array $fallbackBookings = [])
+    {
+        $orgId = (int) $orgId;
+        if ($orgId <= 0) {
+            return 0;
+        }
+
+        try {
+            $today = date('Y-m-d');
+            $endpoint = '/rest/v1/booking_requests?select=id'
+                . '&organization_id=eq.' . rawurlencode((string) $orgId)
+                . '&status=eq.accepted'
+                . '&event_date=gte.' . rawurlencode($today);
+
+            $rows = $this->supabase->adminRequest('GET', $endpoint, [], ['Prefer' => 'return=representation']);
+            if (is_array($rows)) {
+                return count($rows);
+            }
+        } catch (\Exception $e) {
+            error_log('Falling back to role-scoped booking count for organization ' . $orgId . ': ' . $e->getMessage());
+        }
+
+        // Fallback for environments without service role key.
+        return count(array_filter($fallbackBookings, function ($booking) {
+            return ($booking['status'] ?? '') === 'accepted' && strtotime((string) ($booking['event_date'] ?? '')) >= time();
+        }));
     }
 
     private function normalizeImageUrl(array $organization)

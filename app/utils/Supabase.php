@@ -467,6 +467,82 @@ class Supabase
         return $this->supabaseUrl . "/storage/v1/object/public/{$bucket}/{$path}";
     }
 
+    public function deleteStorageObject($bucket, $path)
+    {
+        $safeBucket = trim((string) $bucket);
+        $safePath = ltrim((string) $path, '/');
+
+        if ($safeBucket === '' || $safePath === '') {
+            return false;
+        }
+
+        try {
+            $encodedPath = implode('/', array_map('rawurlencode', explode('/', $safePath)));
+            $this->adminRequest(
+                'DELETE',
+                '/storage/v1/object/' . rawurlencode($safeBucket) . '/' . $encodedPath,
+                []
+            );
+
+            return true;
+        } catch (\Exception $e) {
+            error_log('Failed to delete storage object: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function parseStorageObjectFromUrl($value, $defaultBucket = null)
+    {
+        $raw = trim((string) ($value ?? ''));
+        if ($raw === '') {
+            return null;
+        }
+
+        $bucket = $defaultBucket ? trim((string) $defaultBucket) : null;
+
+        if (preg_match('#^https?://#i', $raw)) {
+            $supabaseHost = parse_url($this->supabaseUrl, PHP_URL_HOST);
+            $rawHost = parse_url($raw, PHP_URL_HOST);
+            $rawPath = parse_url($raw, PHP_URL_PATH) ?? '';
+
+            if (!$supabaseHost || !$rawHost || strtolower((string) $supabaseHost) !== strtolower((string) $rawHost)) {
+                return null;
+            }
+
+            if (preg_match('#/storage/v1/object/(?:public|sign)/([^/]+)/(.+)$#', $rawPath, $matches)) {
+                return [
+                    'bucket' => urldecode($matches[1]),
+                    'path' => urldecode($matches[2]),
+                ];
+            }
+
+            if (preg_match('#/storage/v1/object/([^/]+)/(.+)$#', $rawPath, $matches)) {
+                return [
+                    'bucket' => urldecode($matches[1]),
+                    'path' => urldecode($matches[2]),
+                ];
+            }
+
+            return null;
+        }
+
+        if (preg_match('#^([^/]+)/(.+)$#', $raw, $matches) && strpos($matches[1], '.') === false) {
+            return [
+                'bucket' => $matches[1],
+                'path' => $matches[2],
+            ];
+        }
+
+        if ($bucket) {
+            return [
+                'bucket' => $bucket,
+                'path' => ltrim($raw, '/'),
+            ];
+        }
+
+        return null;
+    }
+
     public function getPublicStorageUrl($bucket, $path)
     {
         $safeBucket = trim((string) $bucket);

@@ -18,6 +18,9 @@ Create .env file in project root folder and copy content sa sinend q na text fil
 SUPABASE_URL=https://your-project-id.supabase.co
 SUPABASE_PUBLIC_ANON_KEY=your-public-anon-key
 SUPABASE_SECRET_KEY=your-secret-key
+INVITATION_STORAGE_DRIVER=supabase
+SUPABASE_INVITATIONS_BUCKET=invitations
+SUPABASE_INVITATIONS_PREFIX=booking-invitations
 APP_ENV=development
 ```
 

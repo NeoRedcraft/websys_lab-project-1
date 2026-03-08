@@ -95,6 +95,8 @@ class AdminController
         return view('admin/organizations-list', [
             'organizations' => $organizations,
             'csrfToken' => csrf_token(),
+            'success' => $_GET['success'] ?? null,
+            'error' => $_GET['error'] ?? null,
         ]);
     }
 
@@ -111,6 +113,7 @@ class AdminController
             error_log('CREATE POST received');
             error_log('FILES: ' . print_r($_FILES, true));
             error_log('POST: ' . print_r($_POST, true));
+            $accessToken = session_get('access_token');
 
             $name = $_POST['name'] ?? '';
             $genre = $_POST['genre'] ?? '';
@@ -132,7 +135,7 @@ class AdminController
                 'technical_requirements' => $technicalRequirements,
                 'youtube_links' => $youtubeLinks,
                 'is_active' => true,
-            ]);
+            ], $accessToken);
 
             if (!$result) {
                 return view('admin/organization-form', [
@@ -145,7 +148,7 @@ class AdminController
                 try {
                     $imageUrl = $this->organizationModel->uploadImage($result, $_FILES['image']);
                     if ($imageUrl) {
-                        $savedImageRef = $this->organizationModel->saveImageReference($result, $imageUrl);
+                        $savedImageRef = $this->organizationModel->saveImageReference($result, $imageUrl, $accessToken);
                         if (!$savedImageRef) {
                             return view('admin/organization-form', [
                                 'error' => 'Organization created, but image could not be saved. Please ensure the organizations table has an image_url column.',
@@ -198,6 +201,7 @@ class AdminController
             error_log('EDIT POST received');
             error_log('FILES: ' . print_r($_FILES, true));
             error_log('POST: ' . print_r($_POST, true));
+            $accessToken = session_get('access_token');
 
             $name = $_POST['name'] ?? $organization['name'];
             $genre = $_POST['genre'] ?? $organization['genre'];
@@ -217,7 +221,7 @@ class AdminController
                 try {
                     $imageUrl = $this->organizationModel->uploadImage($orgId, $_FILES['image']);
                     if ($imageUrl) {
-                        $savedImageRef = $this->organizationModel->saveImageReference($orgId, $imageUrl);
+                        $savedImageRef = $this->organizationModel->saveImageReference($orgId, $imageUrl, $accessToken);
                         if (!$savedImageRef) {
                             return view('admin/organization-form', [
                                 'organization' => $organization,
@@ -225,6 +229,8 @@ class AdminController
                                 'csrfToken' => csrf_token(),
                             ]);
                         }
+
+                        $updateData['image_url'] = $imageUrl;
                     }
                 } catch (\Exception $e) {
                     error_log('Image upload failed: ' . $e->getMessage());
@@ -236,7 +242,7 @@ class AdminController
                 }
             }
 
-            $updated = $this->organizationModel->update($orgId, $updateData);
+            $updated = $this->organizationModel->update($orgId, $updateData, $accessToken);
 
             if (!$updated) {
                 return view('admin/organization-form', [
@@ -249,6 +255,10 @@ class AdminController
             $this->auditLog->logOrganization(get_user()['id'], 'updated', $orgId, $organization, [
                 'name' => $name,
                 'genre' => $genre,
+                'bio' => $bio,
+                'technical_requirements' => $technicalRequirements,
+                'youtube_links' => $youtubeLinks,
+                'image_url' => $updateData['image_url'] ?? ($organization['image_url'] ?? null),
             ]);
 
             redirect('/admin/organizations?success=Organization updated');
@@ -276,7 +286,7 @@ class AdminController
             ]);
         }
 
-        $deleted = $this->organizationModel->delete($orgId);
+        $deleted = $this->organizationModel->delete($orgId, session_get('access_token'));
 
         if (!$deleted) {
             return view('admin/organizations-list', [
