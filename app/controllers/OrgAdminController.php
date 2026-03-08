@@ -35,11 +35,11 @@ class OrgAdminController
     {
         require_auth();
         $user = get_user();
-        
+
         // Get org_id from users_extended table
         $userRecord = $this->userModel->getById($user['id']);
         $orgId = $userRecord['org_id'] ?? null;
-        
+
         if (!$orgId) {
             http_response_code(403);
             return view('error/403', ['message' => 'No organization assigned to this user']);
@@ -64,7 +64,15 @@ class OrgAdminController
     public function viewProfile($params = [])
     {
         $user = get_user();
-        $organization = $this->organizationModel->getById($user['org_id']);
+        $userRecord = $this->userModel->getById($user['id']);
+        $orgId = $userRecord['org_id'] ?? null;
+
+        if (!$orgId) {
+            http_response_code(403);
+            return 'No organization assigned to this user';
+        }
+
+        $organization = $this->organizationModel->getById($orgId);
 
         if (!$organization) {
             http_response_code(404);
@@ -73,6 +81,8 @@ class OrgAdminController
 
         return view('org/profile-view', [
             'organization' => $organization,
+            'success' => $_GET['success'] ?? null,
+            'error' => $_GET['error'] ?? null,
             'csrfToken' => csrf_token(),
         ]);
     }
@@ -83,7 +93,13 @@ class OrgAdminController
     public function editProfile($params = [])
     {
         $user = get_user();
-        $orgId = $user['org_id'];
+        $userRecord = $this->userModel->getById($user['id']);
+        $orgId = $userRecord['org_id'] ?? null;
+
+        if (!$orgId) {
+            http_response_code(403);
+            return 'No organization assigned to this user';
+        }
 
         $organization = $this->organizationModel->getById($orgId);
         if (!$organization) {
@@ -104,13 +120,14 @@ class OrgAdminController
             $technicalRequirements = $_POST['technical_requirements'] ?? $organization['technical_requirements'];
             $youtubeLinks = $_POST['youtube_links'] ?? $organization['youtube_links'];
 
+            $accessToken = $_SESSION['access_token'] ?? null;
             $updated = $this->organizationModel->update($orgId, [
                 'bio' => $bio,
                 'genre' => $genre,
                 'technical_requirements' => $technicalRequirements,
                 'youtube_links' => $youtubeLinks,
                 'updated_at' => date('Y-m-d H:i:s'),
-            ]);
+            ], $accessToken);
 
             if (!$updated) {
                 return view('org/profile-form', [
@@ -127,17 +144,52 @@ class OrgAdminController
                 'technical_requirements' => $technicalRequirements,
             ]);
 
+            return redirect('/org-admin/profile?success=' . urlencode('Profile updated successfully'));
+        }
+    }
+
+    /**
+     * Delete organization profile (FR-04: Org Profile Customization)
+     */
+    public function deleteProfile($params = [])
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            http_response_code(405);
+            return 'Method not allowed';
+        }
+
+        $user = get_user();
+        $userRecord = $this->userModel->getById($user['id']);
+        $orgId = $userRecord['org_id'] ?? null;
+
+        if (!$orgId) {
+            http_response_code(403);
+            return 'No organization assigned to this user';
+        }
+
+        $organization = $this->organizationModel->getById($orgId);
+        if (!$organization) {
+            http_response_code(404);
+            return 'Organization not found';
+        }
+
+        $accessToken = $_SESSION['access_token'] ?? null;
+        $deleted = $this->organizationModel->delete($orgId, $accessToken);
+
+        if (!$deleted) {
             return view('org/profile-form', [
-                'organization' => array_merge($organization, [
-                    'bio' => $bio,
-                    'genre' => $genre,
-                    'technical_requirements' => $technicalRequirements,
-                    'youtube_links' => $youtubeLinks,
-                ]),
-                'success' => 'Profile updated successfully',
+                'organization' => $organization,
+                'error' => 'Failed to delete organization',
                 'csrfToken' => csrf_token(),
             ]);
         }
+
+        // Log organization deletion
+        $this->auditLog->logOrganization($user['id'], 'deleted', $orgId, $organization, []);
+
+        // Sign out user since their org no longer exists
+        session_flush();
+        redirect('/?success=Organization deleted successfully');
     }
 
     /**
@@ -146,7 +198,13 @@ class OrgAdminController
     public function inboxBookings($params = [])
     {
         $user = get_user();
-        $orgId = $user['org_id'];
+        $userRecord = $this->userModel->getById($user['id']);
+        $orgId = $userRecord['org_id'] ?? null;
+
+        if (!$orgId) {
+            http_response_code(403);
+            return 'No organization assigned to this user';
+        }
 
         $bookingRequests = $this->bookingModel->getByOrganization($orgId);
 
@@ -162,7 +220,13 @@ class OrgAdminController
     public function viewBooking($params = [])
     {
         $user = get_user();
-        $orgId = $user['org_id'];
+        $userRecord = $this->userModel->getById($user['id']);
+        $orgId = $userRecord['org_id'] ?? null;
+
+        if (!$orgId) {
+            http_response_code(403);
+            return 'No organization assigned to this user';
+        }
         $bookingId = $params['id'] ?? null;
 
         if (!$bookingId) {
@@ -196,7 +260,12 @@ class OrgAdminController
         }
 
         $user = get_user();
-        $orgId = $user['org_id'];
+        $userRecord = $this->userModel->getById($user['id']);
+        $orgId = $userRecord['org_id'] ?? null;
+
+        if (!$orgId) {
+            return ['error' => 'No organization assigned to this user'];
+        }
         $bookingId = $_POST['booking_id'] ?? null;
         $notes = $_POST['notes'] ?? '';
 
@@ -214,7 +283,8 @@ class OrgAdminController
             return ['error' => 'Booking already processed'];
         }
 
-        $updated = $this->bookingModel->accept($bookingId, $notes);
+        $accessToken = $_SESSION['access_token'] ?? null;
+        $updated = $this->bookingModel->accept($bookingId, $notes, $accessToken);
 
         if (!$updated) {
             return ['error' => 'Failed to accept booking'];
@@ -240,7 +310,12 @@ class OrgAdminController
         }
 
         $user = get_user();
-        $orgId = $user['org_id'];
+        $userRecord = $this->userModel->getById($user['id']);
+        $orgId = $userRecord['org_id'] ?? null;
+
+        if (!$orgId) {
+            return ['error' => 'No organization assigned to this user'];
+        }
         $bookingId = $_POST['booking_id'] ?? null;
         $reason = $_POST['reason'] ?? '';
 
@@ -258,7 +333,8 @@ class OrgAdminController
             return ['error' => 'Booking already processed'];
         }
 
-        $updated = $this->bookingModel->decline($bookingId, $reason);
+        $accessToken = $_SESSION['access_token'] ?? null;
+        $updated = $this->bookingModel->decline($bookingId, $reason, $accessToken);
 
         if (!$updated) {
             return ['error' => 'Failed to decline booking'];
@@ -279,7 +355,13 @@ class OrgAdminController
     public function statistics($params = [])
     {
         $user = get_user();
-        $orgId = $user['org_id'];
+        $userRecord = $this->userModel->getById($user['id']);
+        $orgId = $userRecord['org_id'] ?? null;
+
+        if (!$orgId) {
+            http_response_code(403);
+            return 'No organization assigned to this user';
+        }
 
         $stats = $this->bookingModel->getStats($orgId);
 

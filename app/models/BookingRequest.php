@@ -36,7 +36,7 @@ class BookingRequest
             // Note: Supabase query builder needs to be enhanced to support complex filters
             // For now, we'll fetch and filter client-side
             $url = $this->supabase->getUrl() . "/rest/v1/booking_requests?organizer_id=eq.{$organizerId}";
-            
+
             $response = $this->supabase->makeRequest('GET', $url);
             return is_array($response) ? $response : [];
         } catch (\Exception $e) {
@@ -52,7 +52,7 @@ class BookingRequest
     {
         try {
             $url = $this->supabase->getUrl() . "/rest/v1/booking_requests?organization_id=eq.{$organizationId}";
-            
+
             $response = $this->supabase->makeRequest('GET', $url);
             return is_array($response) ? $response : [];
         } catch (\Exception $e) {
@@ -68,7 +68,7 @@ class BookingRequest
     {
         try {
             $url = $this->supabase->getUrl() . "/rest/v1/booking_requests";
-            
+
             $response = $this->supabase->makeRequest('GET', $url);
             return is_array($response) ? $response : [];
         } catch (\Exception $e) {
@@ -161,9 +161,9 @@ class BookingRequest
                 'accepted_notes' => $notes,
                 'updated_at' => date('Y-m-d H:i:s')
             ];
-            
-            $response = $this->supabase->update('booking_requests', $requestId, $data, $accessToken);
-            return $response['success'];
+
+            $response = $this->supabase->adminRequest('PATCH', "/rest/v1/booking_requests?id=eq.{$requestId}", $data);
+            return isset($response) && is_array($response);
         } catch (\Exception $e) {
             error_log('Error accepting booking: ' . $e->getMessage());
             return false;
@@ -181,9 +181,9 @@ class BookingRequest
                 'declined_reason' => $reason,
                 'updated_at' => date('Y-m-d H:i:s')
             ];
-            
-            $response = $this->supabase->update('booking_requests', $requestId, $data, $accessToken);
-            return $response['success'];
+
+            $response = $this->supabase->adminRequest('PATCH', "/rest/v1/booking_requests?id=eq.{$requestId}", $data);
+            return isset($response) && is_array($response);
         } catch (\Exception $e) {
             error_log('Error declining booking: ' . $e->getMessage());
             return false;
@@ -197,7 +197,7 @@ class BookingRequest
     {
         try {
             $all = $orgId ? $this->getByOrganization($orgId) : $this->getAll();
-            
+
             return [
                 'total' => count($all),
                 'pending' => count(array_filter($all, fn($b) => $b['status'] === 'pending')),
