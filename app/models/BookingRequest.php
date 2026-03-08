@@ -246,4 +246,31 @@ class BookingRequest
             return ['total' => 0, 'pending' => 0, 'accepted' => 0, 'declined' => 0];
         }
     }
+
+    /**
+     * Get all upcoming accepted bookings for calendar display.
+     */
+    public function getUpcomingAcceptedForCalendar()
+    {
+        $today = date('Y-m-d');
+
+        try {
+            $endpoint = '/rest/v1/booking_requests?select=id,event_name,event_date,venue,technical_needs,organization_id,status'
+                . '&status=eq.accepted'
+                . '&event_date=gte.' . rawurlencode($today)
+                . '&order=event_date.asc';
+
+            $rows = $this->supabase->adminRequest('GET', $endpoint, [], ['Prefer' => 'return=representation']);
+            return is_array($rows) ? $rows : [];
+        } catch (\Exception $e) {
+            error_log('Admin calendar booking fetch failed, falling back: ' . $e->getMessage());
+
+            $fallback = $this->getAll();
+            return array_values(array_filter($fallback, function ($booking) use ($today) {
+                $status = strtolower((string) ($booking['status'] ?? ''));
+                $eventDate = (string) ($booking['event_date'] ?? '');
+                return $status === 'accepted' && $eventDate !== '' && $eventDate >= $today;
+            }));
+        }
+    }
 }

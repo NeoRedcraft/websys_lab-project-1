@@ -19,6 +19,17 @@ ob_start();
         </div>
     </div>
 
+    <?php if (!empty($requiresAuthPrompt)): ?>
+        <div class="bg-white rounded-lg shadow-lg p-10 text-center max-w-2xl mx-auto">
+            <h2 class="text-2xl font-bold mb-3">Sign in to view the full calendar</h2>
+            <p class="text-gray-600 mb-6">You need an account to browse all upcoming events.</p>
+            <div class="flex items-center justify-center gap-3">
+                <a href="/signin" class="inline-flex items-center rounded bg-red-600 px-5 py-2 text-white hover:bg-red-700">Sign In</a>
+                <a href="/signup" class="inline-flex items-center rounded border border-gray-300 px-5 py-2 text-gray-700 hover:bg-gray-50">Sign Up</a>
+            </div>
+        </div>
+    <?php else: ?>
+
     <!-- Calendar View -->
     <div id="calendarView" class="bg-white rounded-lg shadow-lg p-6">
         <div id="calendar"></div>
@@ -38,6 +49,7 @@ ob_start();
             </div>
         </div>
     </div>
+    <?php endif; ?>
 </div>
 
 <!-- FullCalendar CSS -->
@@ -47,6 +59,7 @@ ob_start();
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
 
 <script>
+<?php if (empty($requiresAuthPrompt)): ?>
 let calendar;
 let allEvents = [];
 
@@ -202,5 +215,6 @@ function setupSearch() {
     });
 }
 </script>
+<?php endif; ?>
 
 <?php $content = ob_get_clean(); include app_path('views/layout/app.php'); ?>

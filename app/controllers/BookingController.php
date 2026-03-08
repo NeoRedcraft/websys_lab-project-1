@@ -638,51 +638,48 @@ class BookingController
     public function apiGetCalendarEvents($params = [])
     {
         header('Content-Type: application/json');
+
+        if (!auth_check()) {
+            http_response_code(401);
+            echo json_encode([
+                'success' => false,
+                'message' => 'Authentication required to view calendar events',
+            ]);
+            exit;
+        }
         
         try {
-            $user = get_user();
-            $userRole = $this->userModel->getRole($user['id']);
-            $roleName = $userRole['name'] ?? null;
-
-            if ($roleName === 'org_admin') {
-                $userRecord = $this->userModel->getById($user['id']);
-                $orgId = $userRecord['org_id'] ?? null;
-                $organizations = $orgId ? [$this->organizationModel->getById($orgId)] : [];
-            } else {
-                $organizations = $this->organizationModel->getAll();
+            $organizations = $this->organizationModel->getAll();
+            $organizationMap = [];
+            foreach ($organizations as $org) {
+                if (!empty($org['id'])) {
+                    $organizationMap[(string) $org['id']] = $org;
+                }
             }
+
+            $bookings = $this->bookingModel->getUpcomingAcceptedForCalendar();
 
             $events = [];
 
-            foreach ($organizations as $org) {
-                if (!$org || empty($org['id'])) {
-                    continue;
-                }
+            foreach ($bookings as $booking) {
+                $orgId = (string) ($booking['organization_id'] ?? '');
+                $org = $organizationMap[$orgId] ?? null;
 
-                $bookings = $this->bookingModel->getByOrganization($org['id']);
-                
-                // Only include accepted bookings
-                $acceptedBookings = array_filter($bookings, function($b) {
-                    return $b['status'] === 'accepted';
-                });
-
-                foreach ($acceptedBookings as $booking) {
-                    $events[] = [
-                        'id' => 'booking_' . $booking['id'],
-                        'title' => $booking['event_name'],
-                        'start' => $booking['event_date'] . 'T00:00:00',
-                        'backgroundColor' => '#DC2626', // Red
-                        'borderColor' => '#991B1B',
-                        'extendedProps' => [
-                            'event_name' => $booking['event_name'],
-                            'event_date' => $booking['event_date'],
-                            'venue' => $booking['venue'],
-                            'organization_id' => $org['id'],
-                            'organization_name' => $org['name'],
-                            'technical_needs' => $booking['technical_needs'] ?? null,
-                        ]
-                    ];
-                }
+                $events[] = [
+                    'id' => 'booking_' . $booking['id'],
+                    'title' => $booking['event_name'],
+                    'start' => $booking['event_date'] . 'T00:00:00',
+                    'backgroundColor' => '#DC2626', // Red
+                    'borderColor' => '#991B1B',
+                    'extendedProps' => [
+                        'event_name' => $booking['event_name'],
+                        'event_date' => $booking['event_date'],
+                        'venue' => $booking['venue'],
+                        'organization_id' => $booking['organization_id'],
+                        'organization_name' => $org['name'] ?? ('Organization #' . $orgId),
+                        'technical_needs' => $booking['technical_needs'] ?? null,
+                    ]
+                ];
             }
 
             // Sort by date

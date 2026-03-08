@@ -145,9 +145,18 @@ class PagesController
 
     public function calendar($params = [])
     {
+        if (!auth_check()) {
+            return view('pages/calendar', [
+                'isAuthenticated' => false,
+                'user' => null,
+                'requiresAuthPrompt' => true,
+            ]);
+        }
+
         return view('pages/calendar', [
             'isAuthenticated' => auth_check(),
             'user' => get_user(),
+            'requiresAuthPrompt' => false,
         ]);
     }
 
