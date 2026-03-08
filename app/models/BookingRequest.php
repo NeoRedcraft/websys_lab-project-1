@@ -47,12 +47,18 @@ class BookingRequest
     public function getByOrganizer($organizerId, $accessToken = null)
     {
         try {
-            // Note: Supabase query builder needs to be enhanced to support complex filters
-            // For now, we'll fetch and filter client-side
-            $url = $this->supabase->getUrl() . "/rest/v1/booking_requests?organizer_id=eq.{$organizerId}";
-            
-            $response = $this->supabase->makeRequest('GET', $url, [], $this->resolveHeaders($accessToken));
-            return is_array($response) ? $response : [];
+            $safeOrganizerId = urlencode((string) $organizerId);
+            $endpoint = '/rest/v1/booking_requests?select=*&organizer_id=eq.' . $safeOrganizerId . '&order=created_at.desc';
+
+            $response = $this->supabase->makeRequest('GET', $endpoint, [], $this->resolveHeaders($accessToken));
+            if (!is_array($response)) {
+                return [];
+            }
+
+            return array_values(array_filter($response, function ($booking) use ($organizerId) {
+                $ownerId = $booking['organizer_id'] ?? $booking['user_id'] ?? null;
+                return (string) $ownerId === (string) $organizerId;
+            }));
         } catch (\Exception $e) {
             error_log('Error fetching organizer bookings: ' . $e->getMessage());
             return [];
@@ -191,7 +197,6 @@ class BookingRequest
         try {
             $data = [
                 'status' => 'accepted',
-                'accepted_notes' => $notes,
                 'updated_at' => date('Y-m-d H:i:s')
             ];
             
@@ -211,7 +216,6 @@ class BookingRequest
         try {
             $data = [
                 'status' => 'declined',
-                'declined_reason' => $reason,
                 'updated_at' => date('Y-m-d H:i:s')
             ];
             

@@ -64,11 +64,16 @@ CREATE TABLE IF NOT EXISTS booking_requests (
   event_name VARCHAR(255) NOT NULL,
   event_date DATE NOT NULL,
   venue VARCHAR(255) NOT NULL,
+  engage_event_link TEXT,
+  invitation_pdf_url TEXT,
   technical_needs TEXT,
   status VARCHAR(50) DEFAULT 'pending', -- pending, accepted, declined
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE booking_requests ADD COLUMN IF NOT EXISTS engage_event_link TEXT;
+ALTER TABLE booking_requests ADD COLUMN IF NOT EXISTS invitation_pdf_url TEXT;
 
 -- Create indexes for faster queries
 CREATE INDEX IF NOT EXISTS idx_bookings_organizer ON booking_requests(organizer_id);

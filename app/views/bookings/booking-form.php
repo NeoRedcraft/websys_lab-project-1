@@ -10,7 +10,7 @@ ob_start();
         <div class="bg-red-50 border border-red-200 text-red-800 p-3 rounded mb-4"><?= htmlspecialchars($error) ?></div>
     <?php endif; ?>
 
-    <form method="post" action="<?= isset($booking) ? '/bookings/edit/' . ($booking['id'] ?? '') : '/bookings/create' ?>">
+    <form method="post" enctype="multipart/form-data" action="<?= isset($booking) ? '/bookings/edit/' . ($booking['id'] ?? '') : '/bookings/create' ?>">
         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? '') ?>">
 
         <div class="mb-4">
@@ -42,6 +42,21 @@ ob_start();
         <div class="mb-4">
             <label class="block text-sm font-medium text-gray-700">Technical Needs</label>
             <textarea name="technical_needs" class="mt-1 block w-full border rounded px-3 py-2"><?= htmlspecialchars($booking['technical_needs'] ?? '') ?></textarea>
+        </div>
+
+        <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-700">Engage Event Link</label>
+            <input type="url" name="engage_event_link" value="<?= htmlspecialchars($booking['engage_event_link'] ?? '') ?>" placeholder="https://engage.mapua.edu.ph/..." class="mt-1 block w-full border rounded px-3 py-2" />
+            <p class="text-xs text-gray-500 mt-1">Provide the accepted event link from Engage as proof.</p>
+        </div>
+
+        <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-700">Invitation Letter (PDF)</label>
+            <input type="file" name="invitation_pdf" accept="application/pdf" <?= empty($booking['invitation_pdf_url']) ? 'required' : '' ?> class="mt-1 block w-full border rounded px-3 py-2 bg-white" />
+            <?php if (!empty($booking['invitation_pdf_url'])): ?>
+                <a href="<?= htmlspecialchars($booking['invitation_pdf_url']) ?>" target="_blank" rel="noopener" class="inline-block mt-2 text-sm text-red-600 hover:underline">View current invitation PDF</a>
+            <?php endif; ?>
+            <p class="text-xs text-gray-500 mt-1">Upload a formal invitation for org admins to review.</p>
         </div>
 
         <div class="flex items-center space-x-3">

@@ -10,6 +10,8 @@ ob_start();
     $org = isset($organization) ? $organization : null;
     $bookings = isset($bookingRequests) ? $bookingRequests : [];
     $stats = isset($stats) ? $stats : [];
+    $upcomingAcceptedEvents = isset($upcomingAcceptedEvents) ? $upcomingAcceptedEvents : [];
+    $completedAcceptedEvents = isset($completedAcceptedEvents) ? $completedAcceptedEvents : [];
     ?>
 
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -27,6 +29,40 @@ ob_start();
         </div>
     </div>
 
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h2 class="text-2xl font-bold mb-4">Upcoming Accepted Events</h2>
+            <?php if (empty($upcomingAcceptedEvents)): ?>
+                <p class="text-gray-600">No upcoming accepted events.</p>
+            <?php else: ?>
+                <ul class="divide-y">
+                    <?php foreach ($upcomingAcceptedEvents as $event): ?>
+                        <li class="py-3">
+                            <div class="font-medium"><?php echo htmlspecialchars($event['event_name'] ?? '—'); ?></div>
+                            <div class="text-sm text-gray-500"><?php echo htmlspecialchars($event['event_date'] ?? ''); ?></div>
+                        </li>
+                    <?php endforeach; ?>
+                </ul>
+            <?php endif; ?>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h2 class="text-2xl font-bold mb-4">Done Accepted Events</h2>
+            <?php if (empty($completedAcceptedEvents)): ?>
+                <p class="text-gray-600">No completed accepted events yet.</p>
+            <?php else: ?>
+                <ul class="divide-y">
+                    <?php foreach ($completedAcceptedEvents as $event): ?>
+                        <li class="py-3">
+                            <div class="font-medium"><?php echo htmlspecialchars($event['event_name'] ?? '—'); ?></div>
+                            <div class="text-sm text-gray-500"><?php echo htmlspecialchars($event['event_date'] ?? ''); ?></div>
+                        </li>
+                    <?php endforeach; ?>
+                </ul>
+            <?php endif; ?>
+        </div>
+    </div>
+
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div class="lg:col-span-2 bg-white rounded-lg shadow-md p-6">
             <h2 class="text-2xl font-bold mb-4">Incoming Bookings</h2>
@@ -35,20 +71,24 @@ ob_start();
             <?php else: ?>
                 <ul class="divide-y">
                     <?php foreach ($bookings as $b): ?>
+                        <?php $status = strtolower($b['status'] ?? 'pending'); ?>
                         <li class="py-3 flex justify-between items-start">
                             <div>
                                 <div class="font-medium"><?php echo $b['event_name'] ?? '—'; ?></div>
                                 <div class="text-sm text-gray-500"><?php echo $b['event_date'] ?? ''; ?> • <?php echo $b['venue'] ?? ''; ?></div>
+                                <div class="text-xs mt-1 text-gray-600">Status: <?php echo ucfirst($status); ?></div>
                             </div>
                             <div class="space-x-2">
-                                <form method="post" action="/org-admin/bookings/accept" class="inline">
-                                    <input type="hidden" name="booking_id" value="<?php echo $b['id'] ?? ''; ?>">
-                                    <button class="bg-green-600 text-white px-3 py-1 rounded">Accept</button>
-                                </form>
-                                <form method="post" action="/org-admin/bookings/decline" class="inline">
-                                    <input type="hidden" name="booking_id" value="<?php echo $b['id'] ?? ''; ?>">
-                                    <button class="bg-gray-200 px-3 py-1 rounded">Decline</button>
-                                </form>
+                                <?php if ($status === 'pending'): ?>
+                                    <form method="post" action="/org-admin/bookings/accept" class="inline">
+                                        <input type="hidden" name="booking_id" value="<?php echo $b['id'] ?? ''; ?>">
+                                        <button class="bg-green-600 text-white px-3 py-1 rounded">Accept</button>
+                                    </form>
+                                    <form method="post" action="/org-admin/bookings/decline" class="inline">
+                                        <input type="hidden" name="booking_id" value="<?php echo $b['id'] ?? ''; ?>">
+                                        <button class="bg-gray-200 px-3 py-1 rounded">Decline</button>
+                                    </form>
+                                <?php endif; ?>
                             </div>
                         </li>
                     <?php endforeach; ?>

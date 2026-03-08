@@ -9,6 +9,12 @@ ob_start();
     <div class="bg-white border rounded p-4 mb-4">
         <div class="text-sm text-gray-500">Date: <?= htmlspecialchars($booking['event_date'] ?? '') ?></div>
         <div class="text-sm text-gray-500">Venue: <?= htmlspecialchars($booking['venue'] ?? '') ?></div>
+        <?php if (!empty($booking['engage_event_link'])): ?>
+            <div class="text-sm text-gray-500 mt-2">Engage Link: <a href="<?= htmlspecialchars($booking['engage_event_link']) ?>" target="_blank" rel="noopener" class="text-red-600 hover:underline">Open event proof</a></div>
+        <?php endif; ?>
+        <?php if (!empty($booking['invitation_pdf_url'])): ?>
+            <div class="text-sm text-gray-500 mt-1">Invitation PDF: <a href="<?= htmlspecialchars($booking['invitation_pdf_url']) ?>" target="_blank" rel="noopener" class="text-red-600 hover:underline">View attachment</a></div>
+        <?php endif; ?>
         <div class="mt-3 text-gray-700"><?= nl2br(htmlspecialchars($booking['additional_notes'] ?? $booking['technical_needs'] ?? '')) ?></div>
     </div>
 

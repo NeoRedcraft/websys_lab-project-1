@@ -49,11 +49,43 @@ class OrgAdminController
         $bookingRequests = $this->bookingModel->getByOrganization($orgId);
         $stats = $this->bookingModel->getStats($orgId);
 
+        $today = strtotime(date('Y-m-d'));
+        $upcomingAcceptedEvents = [];
+        $completedAcceptedEvents = [];
+
+        foreach ($bookingRequests as $booking) {
+            $status = strtolower((string) ($booking['status'] ?? ''));
+            if ($status !== 'accepted') {
+                continue;
+            }
+
+            $eventDate = strtotime((string) ($booking['event_date'] ?? ''));
+            if ($eventDate === false) {
+                continue;
+            }
+
+            if ($eventDate < $today) {
+                $completedAcceptedEvents[] = $booking;
+            } else {
+                $upcomingAcceptedEvents[] = $booking;
+            }
+        }
+
+        usort($upcomingAcceptedEvents, function ($a, $b) {
+            return strtotime((string) ($a['event_date'] ?? '')) <=> strtotime((string) ($b['event_date'] ?? ''));
+        });
+
+        usort($completedAcceptedEvents, function ($a, $b) {
+            return strtotime((string) ($b['event_date'] ?? '')) <=> strtotime((string) ($a['event_date'] ?? ''));
+        });
+
         return view('pages/org-admin-dashboard', [
             'user' => $user,
             'organization' => $organization,
             'bookingRequests' => $bookingRequests,
             'stats' => $stats,
+            'upcomingAcceptedEvents' => $upcomingAcceptedEvents,
+            'completedAcceptedEvents' => $completedAcceptedEvents,
             'csrfToken' => csrf_token(),
         ]);
     }
@@ -244,29 +276,30 @@ class OrgAdminController
         $orgId = $userRecord['org_id'] ?? null;
         $bookingId = $_POST['booking_id'] ?? null;
         $notes = $_POST['notes'] ?? '';
+        $accessToken = session_get('access_token');
 
         if (!$orgId) {
-            return ['error' => 'No organization assigned'];
+            redirect('/org-admin/bookings?error=' . urlencode('No organization assigned'));
         }
 
         if (!$bookingId) {
-            return ['error' => 'Booking ID required'];
+            redirect('/org-admin/bookings?error=' . urlencode('Booking ID required'));
         }
 
         $booking = $this->bookingModel->getById($bookingId);
         if (!$booking || (int) ($booking['organization_id'] ?? 0) !== (int) $orgId) {
-            return ['error' => 'Unauthorized'];
+            redirect('/org-admin/bookings?error=' . urlencode('Unauthorized'));
         }
 
         // Verify booking is in pending status
         if ($booking['status'] !== 'pending') {
-            return ['error' => 'Booking already processed'];
+            redirect('/org-admin/bookings?error=' . urlencode('Booking already processed'));
         }
 
-        $updated = $this->bookingModel->accept($bookingId, $notes);
+        $updated = $this->bookingModel->accept($bookingId, $notes, $accessToken);
 
         if (!$updated) {
-            return ['error' => 'Failed to accept booking'];
+            redirect('/org-admin/bookings?error=' . urlencode('Failed to accept booking'));
         }
 
         // FR-05: Log booking acceptance
@@ -275,7 +308,7 @@ class OrgAdminController
             'notes' => $notes,
         ]);
 
-        return ['success' => 'Booking accepted'];
+        redirect('/org-admin/bookings?success=' . urlencode('Booking accepted'));
     }
 
     /**
@@ -293,29 +326,30 @@ class OrgAdminController
         $orgId = $userRecord['org_id'] ?? null;
         $bookingId = $_POST['booking_id'] ?? null;
         $reason = $_POST['reason'] ?? '';
+        $accessToken = session_get('access_token');
 
         if (!$orgId) {
-            return ['error' => 'No organization assigned'];
+            redirect('/org-admin/bookings?error=' . urlencode('No organization assigned'));
         }
 
         if (!$bookingId) {
-            return ['error' => 'Booking ID required'];
+            redirect('/org-admin/bookings?error=' . urlencode('Booking ID required'));
         }
 
         $booking = $this->bookingModel->getById($bookingId);
         if (!$booking || (int) ($booking['organization_id'] ?? 0) !== (int) $orgId) {
-            return ['error' => 'Unauthorized'];
+            redirect('/org-admin/bookings?error=' . urlencode('Unauthorized'));
         }
 
         // Verify booking is in pending status
         if ($booking['status'] !== 'pending') {
-            return ['error' => 'Booking already processed'];
+            redirect('/org-admin/bookings?error=' . urlencode('Booking already processed'));
         }
 
-        $updated = $this->bookingModel->decline($bookingId, $reason);
+        $updated = $this->bookingModel->decline($bookingId, $reason, $accessToken);
 
         if (!$updated) {
-            return ['error' => 'Failed to decline booking'];
+            redirect('/org-admin/bookings?error=' . urlencode('Failed to decline booking'));
         }
 
         // FR-05: Log booking declination
@@ -324,7 +358,7 @@ class OrgAdminController
             'reason' => $reason,
         ]);
 
-        return ['success' => 'Booking declined'];
+        redirect('/org-admin/bookings?success=' . urlencode('Booking declined'));
     }
 
     /**

@@ -10,6 +10,12 @@ ob_start();
         <div class="text-sm text-gray-500 mb-1">Date: <?php echo htmlspecialchars($booking['event_date'] ?? ''); ?></div>
         <div class="text-sm text-gray-500 mb-1">Venue: <?php echo htmlspecialchars($booking['venue'] ?? ''); ?></div>
         <div class="text-sm text-gray-500 mb-3">Status: <?php echo htmlspecialchars(ucfirst($booking['status'] ?? 'pending')); ?></div>
+        <?php if (!empty($booking['engage_event_link'])): ?>
+            <div class="text-sm text-gray-500 mb-1">Engage Link: <a href="<?php echo htmlspecialchars($booking['engage_event_link']); ?>" target="_blank" rel="noopener" class="text-red-600 hover:underline">Open event proof</a></div>
+        <?php endif; ?>
+        <?php if (!empty($booking['invitation_pdf_url'])): ?>
+            <div class="text-sm text-gray-500 mb-3">Invitation PDF: <a href="<?php echo htmlspecialchars($booking['invitation_pdf_url']); ?>" target="_blank" rel="noopener" class="text-red-600 hover:underline">View attachment</a></div>
+        <?php endif; ?>
         <div class="mt-3 text-gray-700"><?php echo nl2br(htmlspecialchars($booking['technical_needs'] ?? '')); ?></div>
     </div>
 

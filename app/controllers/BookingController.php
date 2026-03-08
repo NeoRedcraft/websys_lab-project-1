@@ -37,6 +37,10 @@ class BookingController
         $role = $this->userModel->getRole($user['id']);
         $roleName = $role['name'] ?? null;
 
+        if ($roleName === 'org_admin') {
+            redirect('/org-admin/bookings');
+        }
+
         if ($roleName === 'system_admin') {
             $allBookings = $this->bookingModel->getAll();
             $organizations = $this->organizationModel->getAll();
@@ -77,6 +81,10 @@ class BookingController
         }
 
         $bookings = $this->bookingModel->getByOrganizer($user['id']);
+        $bookings = array_values(array_filter($bookings, function ($booking) use ($user) {
+            $ownerId = $booking['organizer_id'] ?? $booking['user_id'] ?? null;
+            return (string) $ownerId === (string) ($user['id'] ?? '');
+        }));
 
         foreach ($bookings as &$booking) {
             $organizationId = $booking['organization_id'] ?? $booking['org_id'] ?? null;
@@ -116,13 +124,39 @@ class BookingController
             $eventDate = $_POST['event_date'] ?? '';
             $venue = $_POST['venue'] ?? '';
             $technicalNeeds = $_POST['technical_needs'] ?? '';
+            $engageEventLink = trim((string) ($_POST['engage_event_link'] ?? ''));
             $accessToken = session_get('access_token');
 
             // Validate required fields
-            if (!$orgId || !$eventName || !$eventDate || !$venue) {
+            if (!$orgId || !$eventName || !$eventDate || !$venue || !$engageEventLink) {
                 $organizations = $this->organizationModel->getAll();
                 return view('bookings/booking-form', [
-                    'error' => 'All required fields must be filled',
+                    'error' => 'All required fields must be filled, including Engage event link',
+                    'booking' => [
+                        'organization_id' => $orgId,
+                        'event_name' => $eventName,
+                        'event_date' => $eventDate,
+                        'venue' => $venue,
+                        'technical_needs' => $technicalNeeds,
+                        'engage_event_link' => $engageEventLink,
+                    ],
+                    'organizations' => $organizations,
+                    'csrfToken' => csrf_token(),
+                ]);
+            }
+
+            if (!filter_var($engageEventLink, FILTER_VALIDATE_URL)) {
+                $organizations = $this->organizationModel->getAll();
+                return view('bookings/booking-form', [
+                    'error' => 'Please provide a valid Engage event URL',
+                    'booking' => [
+                        'organization_id' => $orgId,
+                        'event_name' => $eventName,
+                        'event_date' => $eventDate,
+                        'venue' => $venue,
+                        'technical_needs' => $technicalNeeds,
+                        'engage_event_link' => $engageEventLink,
+                    ],
                     'organizations' => $organizations,
                     'csrfToken' => csrf_token(),
                 ]);
@@ -133,6 +167,47 @@ class BookingController
             if (!$org) {
                 return view('bookings/booking-form', [
                     'error' => 'Invalid organization selected',
+                    'booking' => [
+                        'organization_id' => $orgId,
+                        'event_name' => $eventName,
+                        'event_date' => $eventDate,
+                        'venue' => $venue,
+                        'technical_needs' => $technicalNeeds,
+                        'engage_event_link' => $engageEventLink,
+                    ],
+                    'organizations' => $this->organizationModel->getAll(),
+                    'csrfToken' => csrf_token(),
+                ]);
+            }
+
+            [$invitationPdfUrl, $uploadError] = $this->processInvitationUpload();
+            if ($uploadError) {
+                return view('bookings/booking-form', [
+                    'error' => $uploadError,
+                    'booking' => [
+                        'organization_id' => $orgId,
+                        'event_name' => $eventName,
+                        'event_date' => $eventDate,
+                        'venue' => $venue,
+                        'technical_needs' => $technicalNeeds,
+                        'engage_event_link' => $engageEventLink,
+                    ],
+                    'organizations' => $this->organizationModel->getAll(),
+                    'csrfToken' => csrf_token(),
+                ]);
+            }
+
+            if (!$invitationPdfUrl) {
+                return view('bookings/booking-form', [
+                    'error' => 'Invitation PDF is required',
+                    'booking' => [
+                        'organization_id' => $orgId,
+                        'event_name' => $eventName,
+                        'event_date' => $eventDate,
+                        'venue' => $venue,
+                        'technical_needs' => $technicalNeeds,
+                        'engage_event_link' => $engageEventLink,
+                    ],
                     'organizations' => $this->organizationModel->getAll(),
                     'csrfToken' => csrf_token(),
                 ]);
@@ -145,6 +220,8 @@ class BookingController
                 'event_name' => $eventName,
                 'event_date' => $eventDate,
                 'venue' => $venue,
+                'engage_event_link' => $engageEventLink,
+                'invitation_pdf_url' => $invitationPdfUrl,
                 'technical_needs' => $technicalNeeds,
                 'status' => 'pending',
             ], $accessToken);
@@ -163,6 +240,8 @@ class BookingController
                 'org_id' => $orgId,
                 'event_date' => $eventDate,
                 'venue' => $venue,
+                'engage_event_link' => $engageEventLink,
+                'invitation_pdf_url' => $invitationPdfUrl,
             ]);
 
             redirect('/bookings/my-bookings?success=Booking created successfully');
@@ -188,16 +267,17 @@ class BookingController
             return 'Booking not found';
         }
 
-        // Verify user owns booking or is org admin for this org
+        // Verify user owns booking, is org admin for this org, or is system admin
         $bookingOwnerId = $booking['organizer_id'] ?? $booking['user_id'] ?? null;
         $bookingOrgId = $booking['organization_id'] ?? $booking['org_id'] ?? null;
-        $isOwner = $bookingOwnerId === $user['id'];
+        $isOwner = (string) $bookingOwnerId === (string) ($user['id'] ?? '');
         $userRole = $this->userModel->getRole($user['id']);
+        $isSystemAdmin = ($userRole['name'] ?? '') === 'system_admin';
         $userRecord = $this->userModel->getById($user['id']);
         $userOrgId = $userRecord['org_id'] ?? null;
         $isOrgAdmin = ($userRole['name'] ?? '') === 'org_admin' && (string) $bookingOrgId === (string) $userOrgId;
 
-        if (!$isOwner && !$isOrgAdmin) {
+        if (!$isOwner && !$isOrgAdmin && !$isSystemAdmin) {
             http_response_code(403);
             return 'Unauthorized to view this booking';
         }
@@ -263,12 +343,32 @@ class BookingController
             $eventDate = $_POST['event_date'] ?? $booking['event_date'];
             $venue = $_POST['venue'] ?? $booking['venue'];
             $technicalNeeds = $_POST['technical_needs'] ?? $booking['technical_needs'];
+            $engageEventLink = trim((string) ($_POST['engage_event_link'] ?? ($booking['engage_event_link'] ?? '')));
             $accessToken = session_get('access_token');
 
-            if (!$eventName || !$eventDate || !$venue) {
+            if (!$eventName || !$eventDate || !$venue || !$engageEventLink) {
                 return view('bookings/booking-form', [
                     'booking' => $booking,
-                    'error' => 'All required fields must be filled',
+                    'error' => 'All required fields must be filled, including Engage event link',
+                    'organizations' => $this->organizationModel->getAll(),
+                    'csrfToken' => csrf_token(),
+                ]);
+            }
+
+            if (!filter_var($engageEventLink, FILTER_VALIDATE_URL)) {
+                return view('bookings/booking-form', [
+                    'booking' => $booking,
+                    'error' => 'Please provide a valid Engage event URL',
+                    'organizations' => $this->organizationModel->getAll(),
+                    'csrfToken' => csrf_token(),
+                ]);
+            }
+
+            [$invitationPdfUrl, $uploadError] = $this->processInvitationUpload($booking['invitation_pdf_url'] ?? null);
+            if ($uploadError) {
+                return view('bookings/booking-form', [
+                    'booking' => $booking,
+                    'error' => $uploadError,
                     'organizations' => $this->organizationModel->getAll(),
                     'csrfToken' => csrf_token(),
                 ]);
@@ -278,6 +378,8 @@ class BookingController
                 'event_name' => $eventName,
                 'event_date' => $eventDate,
                 'venue' => $venue,
+                'engage_event_link' => $engageEventLink,
+                'invitation_pdf_url' => $invitationPdfUrl,
                 'technical_needs' => $technicalNeeds,
                 'updated_at' => date('Y-m-d H:i:s'),
             ], $accessToken);
@@ -296,6 +398,8 @@ class BookingController
                 'event_name' => $eventName,
                 'event_date' => $eventDate,
                 'venue' => $venue,
+                'engage_event_link' => $engageEventLink,
+                'invitation_pdf_url' => $invitationPdfUrl,
             ]);
 
             redirect('/bookings/view/' . $bookingId . '?success=Booking updated successfully');
@@ -369,6 +473,50 @@ class BookingController
         return ['organizations' => array_values($filtered)];
     }
 
+    private function processInvitationUpload($existingUrl = null)
+    {
+        $file = $_FILES['invitation_pdf'] ?? null;
+
+        if (!$file || !isset($file['error']) || $file['error'] === UPLOAD_ERR_NO_FILE) {
+            return [$existingUrl, null];
+        }
+
+        if ($file['error'] !== UPLOAD_ERR_OK) {
+            return [$existingUrl, 'Failed to upload invitation PDF'];
+        }
+
+        if (($file['size'] ?? 0) > 5 * 1024 * 1024) {
+            return [$existingUrl, 'Invitation PDF must be 5MB or less'];
+        }
+
+        $extension = strtolower(pathinfo($file['name'] ?? '', PATHINFO_EXTENSION));
+        $mime = mime_content_type($file['tmp_name']);
+        $fileHandle = @fopen($file['tmp_name'], 'rb');
+        $signature = $fileHandle ? fread($fileHandle, 5) : '';
+        if ($fileHandle) {
+            fclose($fileHandle);
+        }
+
+        $isPdfMime = in_array($mime, ['application/pdf', 'application/x-pdf'], true);
+        $hasPdfSignature = $signature === '%PDF-';
+
+        if ($extension !== 'pdf' || !$isPdfMime || !$hasPdfSignature) {
+            return [$existingUrl, 'Invitation file must be a valid PDF'];
+        }
+
+        $uploadDir = base_path('uploads/invitations');
+        if (!is_dir($uploadDir) && !mkdir($uploadDir, 0755, true)) {
+            return [$existingUrl, 'Failed to create invitations upload directory'];
+        }
+
+        $targetFile = $uploadDir . DIRECTORY_SEPARATOR . 'invitation_' . uniqid() . '.pdf';
+        if (!move_uploaded_file($file['tmp_name'], $targetFile)) {
+            return [$existingUrl, 'Failed to save invitation PDF'];
+        }
+
+        return ['/uploads/invitations/' . basename($targetFile), null];
+    }
+
     /**
      * API: Get all organizations for talent directory
      */
@@ -402,10 +550,25 @@ class BookingController
         header('Content-Type: application/json');
         
         try {
-            $organizations = $this->organizationModel->getAll();
+            $user = get_user();
+            $userRole = $this->userModel->getRole($user['id']);
+            $roleName = $userRole['name'] ?? null;
+
+            if ($roleName === 'org_admin') {
+                $userRecord = $this->userModel->getById($user['id']);
+                $orgId = $userRecord['org_id'] ?? null;
+                $organizations = $orgId ? [$this->organizationModel->getById($orgId)] : [];
+            } else {
+                $organizations = $this->organizationModel->getAll();
+            }
+
             $events = [];
 
             foreach ($organizations as $org) {
+                if (!$org || empty($org['id'])) {
+                    continue;
+                }
+
                 $bookings = $this->bookingModel->getByOrganization($org['id']);
                 
                 // Only include accepted bookings

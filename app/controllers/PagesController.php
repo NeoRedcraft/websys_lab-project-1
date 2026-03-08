@@ -66,10 +66,28 @@ class PagesController
             return view('error/403');
         }
 
+        $user = get_user();
+        $bookingModel = new \App\Models\BookingRequest();
+        $bookings = $bookingModel->getByOrganizer($user['id']);
+
+        $stats = [
+            'pending' => 0,
+            'accepted' => 0,
+        ];
+
+        foreach ($bookings as $booking) {
+            $status = strtolower((string) ($booking['status'] ?? ''));
+            if ($status === 'pending') {
+                $stats['pending']++;
+            } elseif ($status === 'accepted') {
+                $stats['accepted']++;
+            }
+        }
+
         return view('pages/organizer-dashboard', [
-            'user' => get_user(),
-            'bookings' => [], 
-            'stats' => ['pending' => 0, 'accepted' => 0]
+            'user' => $user,
+            'bookings' => $bookings,
+            'stats' => $stats,
         ]);
     }
 
