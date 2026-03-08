@@ -28,7 +28,7 @@ class AdminController
     {
         $user = get_user();
         $auditLogs = $this->auditLog->getAll(50);
-        $organizations = $this->organizationModel->getAll();
+        $organizations = $this->organizationModel->getAllForAdmin(session_get('access_token'));
 
         return view('pages/admin-dashboard', [
             'user' => $user,
@@ -90,7 +90,7 @@ class AdminController
 
     public function listOrganizations($params = [])
     {
-        $organizations = $this->organizationModel->getAll();
+        $organizations = $this->organizationModel->getAllForAdmin(session_get('access_token'));
 
         return view('admin/organizations-list', [
             'organizations' => $organizations,
@@ -105,6 +105,8 @@ class AdminController
         if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             return view('admin/organization-form', [
                 'organization' => null,
+                'presidentName' => '',
+                'presidentEmail' => '',
                 'csrfToken' => csrf_token(),
             ]);
         }
@@ -120,10 +122,53 @@ class AdminController
             $bio = $_POST['bio'] ?? '';
             $technicalRequirements = $_POST['technical_requirements'] ?? '';
             $youtubeLinks = $_POST['youtube_links'] ?? '';
+            $presidentName = trim((string) ($_POST['president_name'] ?? ''));
+            $presidentEmail = trim((string) ($_POST['president_email'] ?? ''));
 
             if (!$name) {
                 return view('admin/organization-form', [
                     'error' => 'Organization name is required',
+                    'organization' => [
+                        'name' => $name,
+                        'genre' => $genre,
+                        'bio' => $bio,
+                        'technical_requirements' => $technicalRequirements,
+                        'youtube_links' => $youtubeLinks,
+                    ],
+                    'presidentName' => $presidentName,
+                    'presidentEmail' => $presidentEmail,
+                    'csrfToken' => csrf_token(),
+                ]);
+            }
+
+            if (($presidentName !== '' && $presidentEmail === '') || ($presidentName === '' && $presidentEmail !== '')) {
+                return view('admin/organization-form', [
+                    'error' => 'Provide both president name and email, or leave both blank.',
+                    'organization' => [
+                        'name' => $name,
+                        'genre' => $genre,
+                        'bio' => $bio,
+                        'technical_requirements' => $technicalRequirements,
+                        'youtube_links' => $youtubeLinks,
+                    ],
+                    'presidentName' => $presidentName,
+                    'presidentEmail' => $presidentEmail,
+                    'csrfToken' => csrf_token(),
+                ]);
+            }
+
+            if ($presidentEmail !== '' && !$this->userModel->isValidMapuaEmail($presidentEmail)) {
+                return view('admin/organization-form', [
+                    'error' => 'President email must be a @mymail.mapua.edu.ph address.',
+                    'organization' => [
+                        'name' => $name,
+                        'genre' => $genre,
+                        'bio' => $bio,
+                        'technical_requirements' => $technicalRequirements,
+                        'youtube_links' => $youtubeLinks,
+                    ],
+                    'presidentName' => $presidentName,
+                    'presidentEmail' => $presidentEmail,
                     'csrfToken' => csrf_token(),
                 ]);
             }
@@ -172,7 +217,21 @@ class AdminController
                 'genre' => $genre,
             ]);
 
-            redirect('/admin/organizations?success=Organization created');
+            $presidentMessage = '';
+            if ($presidentName !== '' && $presidentEmail !== '') {
+                if ($this->userModel->getByEmail($presidentEmail)) {
+                    $presidentMessage = ' Organization created. President email already exists; assign role from User Management.';
+                } else {
+                    $createPresident = $this->userModel->adminCreateUser($presidentEmail, $presidentName, 2, (int) $result);
+                    if (!$createPresident['success']) {
+                        $presidentMessage = ' Organization created, but president account creation failed: ' . ($createPresident['error'] ?? 'Unknown error');
+                    } else {
+                        $presidentMessage = ' President account created. Temporary password: ' . ($createPresident['temp_password'] ?? 'generated');
+                    }
+                }
+            }
+
+            redirect('/admin/organizations?success=' . urlencode('Organization created.' . $presidentMessage));
         }
     }
 
@@ -191,8 +250,11 @@ class AdminController
         }
 
         if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+            $currentPresident = $this->getOrganizationPresident($orgId);
             return view('admin/organization-form', [
                 'organization' => $organization,
+                'presidentName' => $currentPresident['full_name'] ?? '',
+                'presidentEmail' => $currentPresident['email'] ?? '',
                 'csrfToken' => csrf_token(),
             ]);
         }
@@ -208,6 +270,8 @@ class AdminController
             $bio = $_POST['bio'] ?? $organization['bio'];
             $technicalRequirements = $_POST['technical_requirements'] ?? $organization['technical_requirements'];
             $youtubeLinks = $_POST['youtube_links'] ?? $organization['youtube_links'];
+            $presidentName = trim((string) ($_POST['president_name'] ?? ''));
+            $presidentEmail = trim((string) ($_POST['president_email'] ?? ''));
 
             $updateData = [
                 'name' => $name,
@@ -242,6 +306,26 @@ class AdminController
                 }
             }
 
+            if (($presidentName !== '' && $presidentEmail === '') || ($presidentName === '' && $presidentEmail !== '')) {
+                return view('admin/organization-form', [
+                    'organization' => $organization,
+                    'presidentName' => $presidentName,
+                    'presidentEmail' => $presidentEmail,
+                    'error' => 'Provide both president name and email, or leave both blank.',
+                    'csrfToken' => csrf_token(),
+                ]);
+            }
+
+            if ($presidentEmail !== '' && !$this->userModel->isValidMapuaEmail($presidentEmail)) {
+                return view('admin/organization-form', [
+                    'organization' => $organization,
+                    'presidentName' => $presidentName,
+                    'presidentEmail' => $presidentEmail,
+                    'error' => 'President email must be a @mymail.mapua.edu.ph address.',
+                    'csrfToken' => csrf_token(),
+                ]);
+            }
+
             $updated = $this->organizationModel->update($orgId, $updateData, $accessToken);
 
             if (!$updated) {
@@ -250,6 +334,43 @@ class AdminController
                     'error' => 'Failed to update organization',
                     'csrfToken' => csrf_token(),
                 ]);
+            }
+
+            $presidentMessage = '';
+            if ($presidentName !== '' && $presidentEmail !== '') {
+                $currentPresident = $this->getOrganizationPresident($orgId);
+                $matchedByEmail = $this->userModel->getByEmail($presidentEmail);
+
+                if ($currentPresident && strcasecmp((string) ($currentPresident['email'] ?? ''), $presidentEmail) === 0) {
+                    $updatedPresident = $this->userModel->adminUpdateUserProfile(
+                        $currentPresident['id'],
+                        $presidentName,
+                        $presidentEmail,
+                        2,
+                        (int) $orgId
+                    );
+                    if (!$updatedPresident) {
+                        $presidentMessage = ' President update failed.';
+                    }
+                } elseif ($matchedByEmail) {
+                    $updatedPresident = $this->userModel->adminUpdateUserProfile(
+                        $matchedByEmail['id'],
+                        $presidentName,
+                        $presidentEmail,
+                        2,
+                        (int) $orgId
+                    );
+                    if (!$updatedPresident) {
+                        $presidentMessage = ' President assignment failed.';
+                    }
+                } else {
+                    $createPresident = $this->userModel->adminCreateUser($presidentEmail, $presidentName, 2, (int) $orgId);
+                    if (!$createPresident['success']) {
+                        $presidentMessage = ' President account creation failed: ' . ($createPresident['error'] ?? 'Unknown error');
+                    } else {
+                        $presidentMessage = ' President account created. Temporary password: ' . ($createPresident['temp_password'] ?? 'generated');
+                    }
+                }
             }
 
             $this->auditLog->logOrganization(get_user()['id'], 'updated', $orgId, $organization, [
@@ -261,8 +382,30 @@ class AdminController
                 'image_url' => $updateData['image_url'] ?? ($organization['image_url'] ?? null),
             ]);
 
-            redirect('/admin/organizations?success=Organization updated');
+            redirect('/admin/organizations?success=' . urlencode('Organization updated.' . $presidentMessage));
         }
+    }
+
+    private function getOrganizationPresident($orgId)
+    {
+        $orgUsers = $this->userModel->getByOrganization($orgId);
+        if (!is_array($orgUsers)) {
+            return null;
+        }
+
+        foreach ($orgUsers as $candidate) {
+            $candidateId = $candidate['id'] ?? null;
+            if (!$candidateId) {
+                continue;
+            }
+
+            $role = $this->userModel->getRole($candidateId);
+            if (($role['name'] ?? '') === 'org_admin') {
+                return $candidate;
+            }
+        }
+
+        return null;
     }
 
     public function deleteOrganization($params = [])
@@ -274,29 +417,84 @@ class AdminController
 
         $orgId = $_POST['id'] ?? null;
         if (!$orgId) {
-            return view('admin/organizations-list', [
-                'error' => 'Organization ID required',
-            ]);
+            redirect('/admin/organizations?error=' . urlencode('Organization ID required'));
         }
 
-        $organization = $this->organizationModel->getById($orgId);
+        $accessToken = session_get('access_token');
+        $organization = $this->organizationModel->getByIdForAdmin($orgId, $accessToken);
         if (!$organization) {
-            return view('admin/organizations-list', [
-                'error' => 'Organization not found',
-            ]);
+            redirect('/admin/organizations?error=' . urlencode('Organization not found'));
         }
 
-        $deleted = $this->organizationModel->delete($orgId, session_get('access_token'));
+        $deleted = $this->organizationModel->delete($orgId, $accessToken);
 
         if (!$deleted) {
-            return view('admin/organizations-list', [
-                'error' => 'Failed to delete organization',
-            ]);
+            redirect('/admin/organizations?error=' . urlencode('Failed to delete organization. If users are still assigned to this organization, deactivate it instead.'));
         }
 
         $this->auditLog->logOrganization(get_user()['id'], 'deleted', $orgId, $organization, []);
 
         redirect('/admin/organizations?success=Organization deleted');
+    }
+
+    public function activateOrganization($params = [])
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            http_response_code(405);
+            return 'Method not allowed';
+        }
+
+        $orgId = $_POST['id'] ?? null;
+        if (!$orgId) {
+            redirect('/admin/dashboard?error=' . urlencode('Organization ID required'));
+        }
+
+        $accessToken = session_get('access_token');
+        $organization = $this->organizationModel->getByIdForAdmin($orgId, $accessToken);
+        if (!$organization) {
+            redirect('/admin/dashboard?error=' . urlencode('Organization not found'));
+        }
+
+        $updated = $this->organizationModel->setActiveStatus($orgId, true, $accessToken);
+        if (!$updated) {
+            redirect('/admin/dashboard?error=' . urlencode('Failed to activate organization'));
+        }
+
+        $this->auditLog->logOrganization(get_user()['id'], 'activated', $orgId, $organization, [
+            'is_active' => true,
+        ]);
+
+        redirect('/admin/dashboard?success=' . urlencode('Organization activated'));
+    }
+
+    public function deactivateOrganization($params = [])
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            http_response_code(405);
+            return 'Method not allowed';
+        }
+
+        $orgId = $_POST['id'] ?? null;
+        if (!$orgId) {
+            redirect('/admin/dashboard?error=' . urlencode('Organization ID required'));
+        }
+
+        $accessToken = session_get('access_token');
+        $organization = $this->organizationModel->getByIdForAdmin($orgId, $accessToken);
+        if (!$organization) {
+            redirect('/admin/dashboard?error=' . urlencode('Organization not found'));
+        }
+
+        $updated = $this->organizationModel->setActiveStatus($orgId, false, $accessToken);
+        if (!$updated) {
+            redirect('/admin/dashboard?error=' . urlencode('Failed to deactivate organization'));
+        }
+
+        $this->auditLog->logOrganization(get_user()['id'], 'deactivated', $orgId, $organization, [
+            'is_active' => false,
+        ]);
+
+        redirect('/admin/dashboard?success=' . urlencode('Organization deactivated'));
     }
 
     public function listUsers($params = [])

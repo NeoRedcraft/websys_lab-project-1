@@ -73,14 +73,14 @@ class Router
                 // Handle callable or string handler
                 if (is_callable($route['handler'])) {
                     $output = call_user_func_array($route['handler'], $params);
-                    echo $output;
+                    $this->emitResponse($output);
                     return;
                 } elseif (is_string($route['handler'])) {
                     [$controller, $method] = explode('@', $route['handler']);
                     $controllerClass = 'App\\Controllers\\' . $controller;
                     $instance = new $controllerClass();
                     $output = call_user_func_array([$instance, $method], [$params]);
-                    echo $output;
+                    $this->emitResponse($output);
                     return;
                 }
             }
@@ -93,5 +93,23 @@ class Router
     {
         http_response_code(404);
         echo view('error/404');
+    }
+
+    private function emitResponse($output)
+    {
+        if ($output === null) {
+            return;
+        }
+
+        if (is_array($output) || is_object($output)) {
+            if (!headers_sent()) {
+                header('Content-Type: application/json');
+            }
+
+            echo json_encode($output);
+            return;
+        }
+
+        echo $output;
     }
 }

@@ -60,6 +60,8 @@ CREATE INDEX IF NOT EXISTS idx_users_email ON users_extended(email);
 CREATE TABLE IF NOT EXISTS booking_requests (
   id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
   organizer_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  organizer_name VARCHAR(255),
+  organizer_email VARCHAR(255),
   organization_id BIGINT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   event_name VARCHAR(255) NOT NULL,
   event_date DATE NOT NULL,
@@ -74,6 +76,8 @@ CREATE TABLE IF NOT EXISTS booking_requests (
 
 ALTER TABLE booking_requests ADD COLUMN IF NOT EXISTS engage_event_link TEXT;
 ALTER TABLE booking_requests ADD COLUMN IF NOT EXISTS invitation_pdf_url TEXT;
+ALTER TABLE booking_requests ADD COLUMN IF NOT EXISTS organizer_name VARCHAR(255);
+ALTER TABLE booking_requests ADD COLUMN IF NOT EXISTS organizer_email VARCHAR(255);
 
 -- Create indexes for faster queries
 CREATE INDEX IF NOT EXISTS idx_bookings_organizer ON booking_requests(organizer_id);

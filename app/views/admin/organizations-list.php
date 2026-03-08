@@ -40,6 +40,19 @@ ob_start();
                         <td class="p-3"><?= $o['is_active'] ? 'Yes' : 'No' ?></td>
                         <td class="p-3">
                             <a href="/admin/organizations/edit/<?= $o['id'] ?>" class="text-red-600">Edit</a>
+                            <?php if (!empty($o['is_active'])): ?>
+                                <form method="post" action="/admin/organizations/deactivate" style="display:inline;margin-left:8px;">
+                                    <input type="hidden" name="id" value="<?= $o['id'] ?>">
+                                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? '') ?>">
+                                    <button class="text-amber-700">Deactivate</button>
+                                </form>
+                            <?php else: ?>
+                                <form method="post" action="/admin/organizations/activate" style="display:inline;margin-left:8px;">
+                                    <input type="hidden" name="id" value="<?= $o['id'] ?>">
+                                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? '') ?>">
+                                    <button class="text-green-700">Activate</button>
+                                </form>
+                            <?php endif; ?>
                             <form method="post" action="/admin/organizations/delete" style="display:inline;margin-left:8px;">
                                 <input type="hidden" name="id" value="<?= $o['id'] ?>">
                                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? '') ?>">

@@ -386,6 +386,34 @@ class OrgAdminController
 
         $bookingRequests = $this->bookingModel->getByOrganization($orgId);
 
+        foreach ($bookingRequests as &$booking) {
+            $booking['organizer_name'] = trim((string) ($booking['organizer_name'] ?? ''));
+            $booking['organizer_email'] = trim((string) ($booking['organizer_email'] ?? ''));
+
+            if ($booking['organizer_name'] !== '' && $booking['organizer_email'] !== '') {
+                continue;
+            }
+
+            $organizerId = $booking['organizer_id'] ?? null;
+            if (!$organizerId) {
+                continue;
+            }
+
+            $organizer = $this->userModel->getById($organizerId);
+            if (!$organizer) {
+                continue;
+            }
+
+            if ($booking['organizer_name'] === '') {
+                $booking['organizer_name'] = trim((string) ($organizer['full_name'] ?? get_display_name($organizer)));
+            }
+
+            if ($booking['organizer_email'] === '') {
+                $booking['organizer_email'] = trim((string) ($organizer['email'] ?? ''));
+            }
+        }
+        unset($booking);
+
         return view('bookings/org-booking-inbox', [
             'bookingRequests' => $bookingRequests,
             'csrfToken' => csrf_token(),
@@ -419,6 +447,16 @@ class OrgAdminController
         }
 
         $organizer = $this->userModel->getById($booking['organizer_id']);
+
+        if (is_array($organizer)) {
+            $organizer['full_name'] = $organizer['full_name'] ?? ($booking['organizer_name'] ?? null);
+            $organizer['email'] = $organizer['email'] ?? ($booking['organizer_email'] ?? null);
+        } elseif (!empty($booking['organizer_name']) || !empty($booking['organizer_email'])) {
+            $organizer = [
+                'full_name' => $booking['organizer_name'] ?? null,
+                'email' => $booking['organizer_email'] ?? null,
+            ];
+        }
 
         return view('bookings/org-booking-detail', [
             'booking' => $booking,

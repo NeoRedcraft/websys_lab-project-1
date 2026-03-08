@@ -122,19 +122,23 @@ class BookingController
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $user = get_user();
+            $userRecord = $this->userModel->getById($user['id']);
             $orgId = $_POST['org_id'] ?? null;
             $eventName = $_POST['event_name'] ?? '';
             $eventDate = $_POST['event_date'] ?? '';
             $venue = $_POST['venue'] ?? '';
             $technicalNeeds = $_POST['technical_needs'] ?? '';
             $engageEventLink = trim((string) ($_POST['engage_event_link'] ?? ''));
+            $invitationPdfUrl = trim((string) ($_POST['invitation_pdf_url'] ?? ''));
             $accessToken = session_get('access_token');
+            $organizerName = trim((string) ($userRecord['full_name'] ?? get_display_name($user)));
+            $organizerEmail = trim((string) ($userRecord['email'] ?? ($user['email'] ?? '')));
 
             // Validate required fields
-            if (!$orgId || !$eventName || !$eventDate || !$venue || !$engageEventLink) {
+            if (!$orgId || !$eventName || !$eventDate || !$venue || !$engageEventLink || !$invitationPdfUrl) {
                 $organizations = $this->organizationModel->getAll();
                 return view('bookings/booking-form', [
-                    'error' => 'All required fields must be filled, including Engage event link',
+                    'error' => 'All required fields must be filled, including Engage event link and invitation URL',
                     'booking' => [
                         'organization_id' => $orgId,
                         'event_name' => $eventName,
@@ -142,6 +146,7 @@ class BookingController
                         'venue' => $venue,
                         'technical_needs' => $technicalNeeds,
                         'engage_event_link' => $engageEventLink,
+                        'invitation_pdf_url' => $invitationPdfUrl,
                     ],
                     'organizations' => $organizations,
                     'csrfToken' => csrf_token(),
@@ -159,6 +164,25 @@ class BookingController
                         'venue' => $venue,
                         'technical_needs' => $technicalNeeds,
                         'engage_event_link' => $engageEventLink,
+                        'invitation_pdf_url' => $invitationPdfUrl,
+                    ],
+                    'organizations' => $organizations,
+                    'csrfToken' => csrf_token(),
+                ]);
+            }
+
+            if (!filter_var($invitationPdfUrl, FILTER_VALIDATE_URL) || !$this->isAllowedInvitationUrl($invitationPdfUrl)) {
+                $organizations = $this->organizationModel->getAll();
+                return view('bookings/booking-form', [
+                    'error' => 'Invitation URL must be a Google Drive or OneDrive link',
+                    'booking' => [
+                        'organization_id' => $orgId,
+                        'event_name' => $eventName,
+                        'event_date' => $eventDate,
+                        'venue' => $venue,
+                        'technical_needs' => $technicalNeeds,
+                        'engage_event_link' => $engageEventLink,
+                        'invitation_pdf_url' => $invitationPdfUrl,
                     ],
                     'organizations' => $organizations,
                     'csrfToken' => csrf_token(),
@@ -183,42 +207,11 @@ class BookingController
                 ]);
             }
 
-            [$invitationPdfUrl, $uploadError] = $this->processInvitationUpload();
-            if ($uploadError) {
-                return view('bookings/booking-form', [
-                    'error' => $uploadError,
-                    'booking' => [
-                        'organization_id' => $orgId,
-                        'event_name' => $eventName,
-                        'event_date' => $eventDate,
-                        'venue' => $venue,
-                        'technical_needs' => $technicalNeeds,
-                        'engage_event_link' => $engageEventLink,
-                    ],
-                    'organizations' => $this->organizationModel->getAll(),
-                    'csrfToken' => csrf_token(),
-                ]);
-            }
-
-            if (!$invitationPdfUrl) {
-                return view('bookings/booking-form', [
-                    'error' => 'Invitation PDF is required',
-                    'booking' => [
-                        'organization_id' => $orgId,
-                        'event_name' => $eventName,
-                        'event_date' => $eventDate,
-                        'venue' => $venue,
-                        'technical_needs' => $technicalNeeds,
-                        'engage_event_link' => $engageEventLink,
-                    ],
-                    'organizations' => $this->organizationModel->getAll(),
-                    'csrfToken' => csrf_token(),
-                ]);
-            }
-
             // Create booking request with pending status
             $bookingId = $this->bookingModel->create([
                 'organizer_id' => $user['id'],
+                'organizer_name' => $organizerName,
+                'organizer_email' => $organizerEmail,
                 'organization_id' => $orgId,
                 'event_name' => $eventName,
                 'event_date' => $eventDate,
@@ -245,6 +238,8 @@ class BookingController
             $this->auditLog->logBooking($user['id'], 'created', $bookingId, null, [
                 'event_name' => $eventName,
                 'org_id' => $orgId,
+                'organizer_name' => $organizerName,
+                'organizer_email' => $organizerEmail,
                 'event_date' => $eventDate,
                 'venue' => $venue,
                 'engage_event_link' => $engageEventLink,
@@ -351,12 +346,13 @@ class BookingController
             $venue = $_POST['venue'] ?? $booking['venue'];
             $technicalNeeds = $_POST['technical_needs'] ?? $booking['technical_needs'];
             $engageEventLink = trim((string) ($_POST['engage_event_link'] ?? ($booking['engage_event_link'] ?? '')));
+            $invitationPdfUrl = trim((string) ($_POST['invitation_pdf_url'] ?? ($booking['invitation_pdf_url'] ?? '')));
             $accessToken = session_get('access_token');
 
-            if (!$eventName || !$eventDate || !$venue || !$engageEventLink) {
+            if (!$eventName || !$eventDate || !$venue || !$engageEventLink || !$invitationPdfUrl) {
                 return view('bookings/booking-form', [
                     'booking' => $booking,
-                    'error' => 'All required fields must be filled, including Engage event link',
+                    'error' => 'All required fields must be filled, including Engage event link and invitation URL',
                     'organizations' => $this->organizationModel->getAll(),
                     'csrfToken' => csrf_token(),
                 ]);
@@ -371,11 +367,10 @@ class BookingController
                 ]);
             }
 
-            [$invitationPdfUrl, $uploadError] = $this->processInvitationUpload($booking['invitation_pdf_url'] ?? null);
-            if ($uploadError) {
+            if (!filter_var($invitationPdfUrl, FILTER_VALIDATE_URL) || !$this->isAllowedInvitationUrl($invitationPdfUrl)) {
                 return view('bookings/booking-form', [
                     'booking' => $booking,
-                    'error' => $uploadError,
+                    'error' => 'Invitation URL must be a Google Drive or OneDrive link',
                     'organizations' => $this->organizationModel->getAll(),
                     'csrfToken' => csrf_token(),
                 ]);
@@ -398,11 +393,6 @@ class BookingController
                     'organizations' => $this->organizationModel->getAll(),
                     'csrfToken' => csrf_token(),
                 ]);
-            }
-
-            $previousInvitationPdfUrl = $booking['invitation_pdf_url'] ?? null;
-            if ($invitationPdfUrl !== $previousInvitationPdfUrl && !empty($previousInvitationPdfUrl)) {
-                $this->deleteInvitationAsset($previousInvitationPdfUrl);
             }
 
             // FR-05: Log booking update
@@ -430,31 +420,35 @@ class BookingController
 
         $user = get_user();
         $bookingId = $_POST['booking_id'] ?? null;
+        $accessToken = session_get('access_token');
+        $userRole = $this->userModel->getRole($user['id']);
+        $isSystemAdmin = ($userRole['name'] ?? '') === 'system_admin';
+        $redirectPath = '/bookings';
 
         if (!$bookingId) {
-            return ['error' => 'Booking ID required'];
+            redirect($redirectPath . '?error=' . urlencode('Booking ID required'));
         }
 
         $booking = $this->bookingModel->getById($bookingId);
         if (!$booking) {
-            return ['error' => 'Booking not found'];
+            redirect($redirectPath . '?error=' . urlencode('Booking not found'));
         }
 
         // Only owner can delete their booking
         $bookingOwnerId = $booking['organizer_id'] ?? $booking['user_id'] ?? null;
-        if ($bookingOwnerId !== $user['id']) {
-            return ['error' => 'Unauthorized'];
+        if (!$isSystemAdmin && $bookingOwnerId !== $user['id']) {
+            redirect($redirectPath . '?error=' . urlencode('Unauthorized'));
         }
 
         // Can only delete pending bookings
-        if ($booking['status'] !== 'pending') {
-            return ['error' => 'Can only delete pending booking requests'];
+        if (!$isSystemAdmin && $booking['status'] !== 'pending') {
+            redirect($redirectPath . '?error=' . urlencode('Can only delete pending booking requests'));
         }
 
-        $deleted = $this->bookingModel->delete($bookingId);
+        $deleted = $this->bookingModel->delete($bookingId, $accessToken, $isSystemAdmin);
 
         if (!$deleted) {
-            return ['error' => 'Failed to delete booking'];
+            redirect($redirectPath . '?error=' . urlencode('Failed to delete booking'));
         }
 
         $invitationPdfUrl = $booking['invitation_pdf_url'] ?? null;
@@ -467,7 +461,7 @@ class BookingController
             'status' => 'deleted',
         ]);
 
-        return ['success' => 'Booking deleted'];
+        redirect($redirectPath . '?success=' . urlencode('Booking deleted'));
     }
 
     /**
@@ -605,6 +599,29 @@ class BookingController
         }
 
         return $this->supabase ?: null;
+    }
+
+    private function isAllowedInvitationUrl($url)
+    {
+        $host = strtolower((string) parse_url($url, PHP_URL_HOST));
+        if ($host === '') {
+            return false;
+        }
+
+        $allowedHosts = [
+            'drive.google.com',
+            'docs.google.com',
+            'onedrive.live.com',
+            '1drv.ms',
+        ];
+
+        foreach ($allowedHosts as $allowedHost) {
+            if ($host === $allowedHost || str_ends_with($host, '.' . $allowedHost)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

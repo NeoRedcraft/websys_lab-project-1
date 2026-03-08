@@ -33,6 +33,29 @@ class Organization
         }
     }
 
+    public function getByIdForAdmin($orgId, $accessToken = null)
+    {
+        if (!$accessToken) {
+            return $this->getById($orgId);
+        }
+
+        try {
+            $endpoint = '/rest/v1/organizations?select=*&id=eq.' . rawurlencode((string) $orgId) . '&limit=1';
+            $organizations = $this->supabase->makeRequest('GET', $endpoint, [], [
+                'Authorization' => 'Bearer ' . $accessToken,
+            ]);
+
+            if (!is_array($organizations) || empty($organizations[0])) {
+                return null;
+            }
+
+            return $this->normalizeImageUrl($organizations[0]);
+        } catch (\Exception $e) {
+            error_log('Error fetching organization for admin: ' . $e->getMessage());
+            return null;
+        }
+    }
+
     public function getAll()
     {
         try {
@@ -54,6 +77,37 @@ class Organization
             return $this->sortOrganizationsByName($organizations);
         } catch (\Exception $e) {
             error_log('Error fetching organizations: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    public function getAllForAdmin($accessToken = null)
+    {
+        if (!$accessToken) {
+            return $this->getAll();
+        }
+
+        try {
+            $endpoint = '/rest/v1/organizations?select=*&order=name.asc';
+            $organizations = $this->supabase->makeRequest('GET', $endpoint, [], [
+                'Authorization' => 'Bearer ' . $accessToken,
+            ]);
+
+            if (!is_array($organizations)) {
+                return [];
+            }
+
+            foreach ($organizations as &$organization) {
+                if (!is_array($organization)) {
+                    continue;
+                }
+
+                $organization = $this->normalizeImageUrl($organization);
+            }
+
+            return $this->sortOrganizationsByName($organizations);
+        } catch (\Exception $e) {
+            error_log('Error fetching admin organizations: ' . $e->getMessage());
             return [];
         }
     }
@@ -112,11 +166,17 @@ class Organization
     public function delete($orgId, $accessToken = null)
     {
         try {
-            return $this->update($orgId, ['is_active' => false], $accessToken);
+            $response = $this->supabase->delete('organizations', $orgId, $accessToken);
+            return !empty($response['success']);
         } catch (\Exception $e) {
             error_log('Error deleting organization: ' . $e->getMessage());
             return false;
         }
+    }
+
+    public function setActiveStatus($orgId, $isActive, $accessToken = null)
+    {
+        return $this->update($orgId, ['is_active' => (bool) $isActive], $accessToken);
     }
 
     public function getAdmin($orgId)

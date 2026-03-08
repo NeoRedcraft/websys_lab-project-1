@@ -60,7 +60,8 @@ document.addEventListener('DOMContentLoaded', function () {
             const genre = organization.genre || 'Organization';
             const bio = (organization.bio || '').trim();
             const summary = bio ? (bio.length > 140 ? bio.substring(0, 140) + '...' : bio) : 'Professional performing organization';
-            const upcomingCount = Number(organization.upcoming_bookings_count || 0);
+            const parsedCount = Number(organization.upcoming_bookings_count);
+            const upcomingCount = Number.isFinite(parsedCount) && parsedCount >= 0 ? parsedCount : 0;
             const imageUrl = organization.image_url || organization.image || organization.logo_url || '';
 
             const banner = imageUrl
@@ -78,7 +79,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 + '<div class="p-5">'
                 + '<h2 class="text-lg font-bold mb-2">' + escapeHtml(name) + '</h2>'
                 + '<p class="text-sm text-gray-600 mb-3">' + escapeHtml(summary) + '</p>'
-                + '<div class="text-xs text-gray-500 mb-4">' + upcomingCount + ' upcoming booking' + (upcomingCount === 1 ? '' : 's') + '</div>'
+                + '<div class="mb-4">'
+                + '<span class="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-800">Upcoming bookings: ' + upcomingCount + '</span>'
+                + '</div>'
                 + '<a href="/organizations/' + Number(organization.id || 0) + '" class="w-full block bg-red-600 text-white py-2 rounded-lg text-center hover:bg-red-700 transition">View</a>'
                 + '</div></div>';
         }).join('');

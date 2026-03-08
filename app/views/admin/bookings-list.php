@@ -55,6 +55,10 @@ ob_start();
                                     </td>
                                     <td class="px-6 py-4 text-right text-sm font-medium">
                                         <a href="/bookings/view/<?php echo (int) ($booking['id'] ?? 0); ?>" class="text-red-600 hover:text-red-900">View</a>
+                                        <form method="post" action="/bookings/delete" class="inline" onsubmit="return confirm('Delete this booking request? This action cannot be undone.');">
+                                            <input type="hidden" name="booking_id" value="<?php echo (int) ($booking['id'] ?? 0); ?>">
+                                            <button type="submit" class="ml-3 text-gray-600 hover:text-gray-900">Delete</button>
+                                        </form>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>

@@ -85,9 +85,29 @@ ob_start();
                         <li class="flex items-center justify-between">
                             <div>
                                 <div class="font-medium"><?php echo $o['name'] ?? '—'; ?></div>
-                                <div class="text-sm text-gray-500"><?php echo $o['genre'] ?? ''; ?></div>
+                                <div class="text-sm text-gray-500">
+                                    <?php echo $o['genre'] ?? ''; ?>
+                                    <span class="ml-2 <?php echo !empty($o['is_active']) ? 'text-green-700' : 'text-amber-700'; ?>">
+                                        <?php echo !empty($o['is_active']) ? 'Active' : 'Inactive'; ?>
+                                    </span>
+                                </div>
                             </div>
-                            <a href="/admin/organizations/edit/<?php echo $o['id'] ?? ''; ?>" class="text-red-600 hover:underline">Edit</a>
+                            <div class="flex items-center gap-2">
+                                <a href="/admin/organizations/edit/<?php echo $o['id'] ?? ''; ?>" class="text-red-600 hover:underline">Edit</a>
+                                <?php if (!empty($o['is_active'])): ?>
+                                    <form method="post" action="/admin/organizations/deactivate">
+                                        <input type="hidden" name="id" value="<?php echo htmlspecialchars((string) ($o['id'] ?? '')); ?>">
+                                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken ?? ''); ?>">
+                                        <button class="text-amber-700 hover:underline" type="submit">Deactivate</button>
+                                    </form>
+                                <?php else: ?>
+                                    <form method="post" action="/admin/organizations/activate">
+                                        <input type="hidden" name="id" value="<?php echo htmlspecialchars((string) ($o['id'] ?? '')); ?>">
+                                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken ?? ''); ?>">
+                                        <button class="text-green-700 hover:underline" type="submit">Activate</button>
+                                    </form>
+                                <?php endif; ?>
+                            </div>
                         </li>
                     <?php endforeach; ?>
                 </ul>

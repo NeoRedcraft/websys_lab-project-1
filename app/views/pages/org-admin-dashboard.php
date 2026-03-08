@@ -96,7 +96,7 @@ ob_start();
             <?php endif; ?>
         </div>
 
-        <div class="bg-white rounded-lg shadow-md p-6">
+        <div class="bg-white rounded-lg shadow-md p-6 self-start h-fit">
             <h2 class="text-2xl font-bold mb-4">Organization Info</h2>
             <?php if (!$org): ?>
                 <p class="text-gray-600">No organization assigned.</p>

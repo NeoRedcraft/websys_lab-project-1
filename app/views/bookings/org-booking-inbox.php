@@ -29,7 +29,10 @@ ob_start();
                         <tr class="hover:bg-gray-50 transition">
                             <td class="px-6 py-4">
                                 <div class="text-sm font-bold text-gray-900"><?php echo htmlspecialchars($booking['event_name'] ?? ''); ?></div>
-                                <div class="text-xs text-gray-500">Organizer ID: <?php echo htmlspecialchars($booking['organizer_id'] ?? ''); ?></div>
+                                <div class="text-xs text-gray-500">Organizer: <?php echo htmlspecialchars($booking['organizer_name'] ?? ($booking['organizer_id'] ?? '')); ?></div>
+                                <?php if (!empty($booking['organizer_email'])): ?>
+                                    <div class="text-xs text-gray-500"><?php echo htmlspecialchars($booking['organizer_email']); ?></div>
+                                <?php endif; ?>
                             </td>
                             <td class="px-6 py-4">
                                 <div class="text-sm text-gray-900"><?php echo htmlspecialchars(date('M d, Y', strtotime($booking['event_date'] ?? 'now'))); ?></div>

@@ -177,4 +177,101 @@ class User
             return [];
         }
     }
+
+    /**
+     * Admin utility: create auth user + users_extended profile.
+     */
+    public function adminCreateUser($email, $fullName, $roleId, $orgId = null)
+    {
+        try {
+            $tempPassword = 'ChangeMe2025!';
+
+            $authUser = $this->supabase->adminRequest('POST', '/auth/v1/admin/users', [
+                'email' => $email,
+                'password' => $tempPassword,
+                'email_confirm' => true,
+                'user_metadata' => [
+                    'name' => $fullName,
+                    'full_name' => $fullName,
+                ],
+            ]);
+
+            $authUserId = $authUser['id'] ?? null;
+            if (!$authUserId) {
+                return ['success' => false, 'error' => 'Failed to create auth user'];
+            }
+
+            $profilePayload = [[
+                'id' => $authUserId,
+                'email' => $email,
+                'full_name' => $fullName,
+                'role_id' => (int) $roleId,
+                'org_id' => $orgId ? (int) $orgId : null,
+                'is_active' => true,
+            ]];
+
+            $this->supabase->adminRequest(
+                'POST',
+                '/rest/v1/users_extended',
+                $profilePayload,
+                [
+                    'Prefer' => 'resolution=merge-duplicates,return=representation',
+                    'Content-Type' => 'application/json',
+                ]
+            );
+
+            return [
+                'success' => true,
+                'user_id' => $authUserId,
+                'temp_password' => $tempPassword,
+            ];
+        } catch (\Exception $e) {
+            return [
+                'success' => false,
+                'error' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Admin utility: update user role/org assignment in users_extended.
+     */
+    public function adminUpdateRole($userId, $roleId, $orgId = null)
+    {
+        try {
+            $endpoint = '/rest/v1/users_extended?id=eq.' . rawurlencode((string) $userId);
+            $this->supabase->adminRequest('PATCH', $endpoint, [
+                'role_id' => (int) $roleId,
+                'org_id' => $orgId ? (int) $orgId : null,
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]);
+
+            return true;
+        } catch (\Exception $e) {
+            error_log('Error updating admin role assignment: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Admin utility: update users_extended full name/email with role/org assignment.
+     */
+    public function adminUpdateUserProfile($userId, $fullName, $email, $roleId = 2, $orgId = null)
+    {
+        try {
+            $endpoint = '/rest/v1/users_extended?id=eq.' . rawurlencode((string) $userId);
+            $this->supabase->adminRequest('PATCH', $endpoint, [
+                'full_name' => $fullName,
+                'email' => $email,
+                'role_id' => (int) $roleId,
+                'org_id' => $orgId ? (int) $orgId : null,
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]);
+
+            return true;
+        } catch (\Exception $e) {
+            error_log('Error updating admin user profile: ' . $e->getMessage());
+            return false;
+        }
+    }
 }
