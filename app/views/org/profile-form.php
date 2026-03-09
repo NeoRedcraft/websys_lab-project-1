@@ -2,76 +2,197 @@
 $title = 'Edit Organization Profile - Cardinal Stage';
 ob_start();
 ?>
-
-<div class="max-w-4xl mx-auto p-6">
-    <div class="flex items-center justify-between mb-6">
-        <h1 class="text-3xl font-bold">Edit Organization Profile</h1>
-        <div class="flex items-center gap-3">
-            <a href="/org-admin/dashboard" class="inline-flex items-center rounded border border-gray-300 px-4 py-2 text-gray-700 hover:bg-gray-50">Back to Org Dashboard</a>
-            <a href="/org-admin/profile" class="text-gray-700 hover:text-gray-900">Back to Profile</a>
+<div class="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+    <div class="md:flex md:items-center md:justify-between mb-8">
+        <div class="flex-1 min-w-0">
+            <h2 class="text-2xl font-bold leading-7 text-gray-900 sm:text-3xl sm:truncate">
+                Edit Organization Profile
+            </h2>
+        </div>
+        <div class="mt-4 flex md:mt-0 md:ml-4">
+            <a href="/org-admin/profile"
+                class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                Cancel
+            </a>
         </div>
     </div>
 
-    <?php if (!empty($success)): ?>
-        <div class="mb-4 rounded border border-green-200 bg-green-50 px-4 py-3 text-green-800">
-            <?php echo htmlspecialchars($success); ?>
+    <?php if (isset($error)): ?>
+        <div class="rounded-md bg-red-50 p-4 mb-6">
+            <div class="flex">
+                <div class="flex-shrink-0">
+                    <svg class="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"
+                        fill="currentColor">
+                        <path fill-rule="evenodd"
+                            d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                            clip-rule="evenodd" />
+                    </svg>
+                </div>
+                <div class="ml-3">
+                    <h3 class="text-sm font-medium text-red-800">Error</h3>
+                    <div class="mt-2 text-sm text-red-700">
+                        <p><?php echo htmlspecialchars($error); ?></p>
+                    </div>
+                </div>
+            </div>
         </div>
     <?php endif; ?>
 
-    <?php if (!empty($error)): ?>
-        <div class="mb-4 rounded border border-red-200 bg-red-50 px-4 py-3 text-red-800">
-            <?php echo htmlspecialchars($error); ?>
+    <?php if (isset($success)): ?>
+        <div class="rounded-md bg-green-50 p-4 mb-6">
+            <div class="flex">
+                <div class="flex-shrink-0">
+                    <svg class="h-5 w-5 text-green-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"
+                        fill="currentColor">
+                        <path fill-rule="evenodd"
+                            d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                            clip-rule="evenodd" />
+                    </svg>
+                </div>
+                <div class="ml-3">
+                    <p class="text-sm font-medium text-green-800">
+                        <?php echo htmlspecialchars($success); ?>
+                    </p>
+                </div>
+            </div>
         </div>
     <?php endif; ?>
 
     <?php if (!empty($reviewState['hasPending'])): ?>
-        <div class="mb-4 rounded border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900">
-            Your form is prefilled with the latest admin profile update so you can review and edit it before saving.
+        <div class="rounded-md bg-amber-50 p-4 mb-6 border border-amber-200">
+            <p class="text-sm text-amber-800">
+                There are pending admin profile changes. Saving this form will apply your values and mark the profile as resolved.
+            </p>
         </div>
     <?php endif; ?>
 
-    <form method="POST" enctype="multipart/form-data" action="/org-admin/profile/edit" class="bg-white border rounded-lg shadow-sm p-6 space-y-5">
-        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken ?? ''); ?>">
+    <div class="bg-white shadow overflow-hidden sm:rounded-lg">
+        <form action="/org-admin/profile/edit" method="POST" enctype="multipart/form-data" class="space-y-8 divide-y divide-gray-200 p-6 sm:p-8">
+            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken ?? ''); ?>">
 
-        <div>
-            <label for="name" class="block text-sm font-medium text-gray-700 mb-1">Organization Name</label>
-            <input id="name" name="name" type="text" value="<?php echo htmlspecialchars($organization['name'] ?? ''); ?>" class="w-full rounded border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500">
-        </div>
+            <div class="space-y-8 divide-y divide-gray-200">
+                <div>
+                    <div>
+                        <h3 class="text-lg leading-6 font-medium text-gray-900">
+                            Profile Content
+                        </h3>
+                        <p class="mt-1 text-sm text-gray-500">
+                            Update the public-facing information for
+                            <?php echo htmlspecialchars($organization['name'] ?? 'your organization'); ?>.
+                        </p>
+                    </div>
 
-        <div>
-            <label for="image" class="block text-sm font-medium text-gray-700 mb-1">Organization Logo/Image</label>
-            <?php if (!empty($organization['image_url'])): ?>
-                <img src="<?php echo htmlspecialchars($organization['image_url']); ?>" alt="Organization image" class="w-full h-40 object-cover rounded mb-2">
-            <?php endif; ?>
-            <input id="image" type="file" name="image" accept="image/*" class="w-full rounded border border-gray-300 px-3 py-2">
-            <p class="text-xs text-gray-500 mt-1">Accepted: JPG, PNG, GIF, WEBP. Max 2MB.</p>
-        </div>
+                    <div class="mt-6 grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6">
+                        <div class="sm:col-span-6">
+                            <label for="name" class="block text-sm font-medium text-gray-700">
+                                Organization Name
+                            </label>
+                            <div class="mt-1">
+                                <input type="text" name="name" id="name"
+                                    value="<?php echo htmlspecialchars($organization['name'] ?? ''); ?>"
+                                    class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md">
+                            </div>
+                        </div>
 
-        <div>
-            <label for="bio" class="block text-sm font-medium text-gray-700 mb-1">Bio</label>
-            <textarea id="bio" name="bio" rows="6" class="w-full rounded border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"><?php echo htmlspecialchars($organization['bio'] ?? ''); ?></textarea>
-        </div>
+                        <div class="sm:col-span-3">
+                            <label for="genre" class="block text-sm font-medium text-gray-700">
+                                Genre / Category
+                            </label>
+                            <div class="mt-1">
+                                <input type="text" name="genre" id="genre"
+                                    value="<?php echo htmlspecialchars($organization['genre'] ?? ''); ?>"
+                                    class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md">
+                            </div>
+                        </div>
 
-        <div>
-            <label for="genre" class="block text-sm font-medium text-gray-700 mb-1">Genre</label>
-            <input id="genre" name="genre" type="text" value="<?php echo htmlspecialchars($organization['genre'] ?? ''); ?>" class="w-full rounded border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500">
-        </div>
+                        <div class="sm:col-span-6">
+                            <label for="bio" class="block text-sm font-medium text-gray-700">
+                                Bio
+                            </label>
+                            <div class="mt-1">
+                                <textarea id="bio" name="bio" rows="4"
+                                    class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border border-gray-300 rounded-md"><?php echo htmlspecialchars($organization['bio'] ?? ''); ?></textarea>
+                            </div>
+                            <p class="mt-2 text-sm text-gray-500">Write a few sentences about the organization.</p>
+                        </div>
 
-        <div>
-            <label for="technical_requirements" class="block text-sm font-medium text-gray-700 mb-1">Technical Requirements</label>
-            <textarea id="technical_requirements" name="technical_requirements" rows="4" class="w-full rounded border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"><?php echo htmlspecialchars($organization['technical_requirements'] ?? ''); ?></textarea>
-        </div>
+                        <div class="sm:col-span-6">
+                            <label for="technical_requirements" class="block text-sm font-medium text-gray-700">
+                                Technical Requirements
+                            </label>
+                            <div class="mt-1">
+                                <textarea id="technical_requirements" name="technical_requirements" rows="4"
+                                    class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border border-gray-300 rounded-md"><?php echo htmlspecialchars($organization['technical_requirements'] ?? ''); ?></textarea>
+                            </div>
+                            <p class="mt-2 text-sm text-gray-500">List equipment and space requirements.</p>
+                        </div>
 
-        <div>
-            <label for="youtube_links" class="block text-sm font-medium text-gray-700 mb-1">YouTube Links (one per line)</label>
-            <textarea id="youtube_links" name="youtube_links" rows="4" class="w-full rounded border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"><?php echo htmlspecialchars($organization['youtube_links'] ?? ''); ?></textarea>
-        </div>
+                        <div class="sm:col-span-6">
+                            <label for="image" class="block text-sm font-medium text-gray-700">
+                                Organization Logo/Image
+                            </label>
+                            <?php if (!empty($organization['image_url'])): ?>
+                                <img src="<?php echo htmlspecialchars($organization['image_url']); ?>" alt="Organization image"
+                                    class="mt-2 w-full max-w-sm h-40 object-cover rounded border border-gray-200">
+                            <?php endif; ?>
+                            <div class="mt-2">
+                                <input id="image" type="file" name="image" accept="image/*"
+                                    class="block w-full text-sm text-gray-700 border border-gray-300 rounded-md file:mr-4 file:py-2 file:px-4 file:border-0 file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
+                            </div>
+                            <p class="mt-2 text-sm text-gray-500">Accepted: JPG, PNG, GIF, WEBP. Max 2MB.</p>
+                        </div>
 
-        <div class="flex justify-end gap-3">
-            <a href="/org-admin/profile" class="inline-flex items-center rounded border border-gray-300 px-4 py-2 text-gray-700 hover:bg-gray-50">Cancel</a>
-            <button type="submit" class="inline-flex items-center rounded bg-red-600 px-4 py-2 text-white hover:bg-red-700">Save Changes</button>
+                        <div class="sm:col-span-6">
+                            <label for="youtube_links" class="block text-sm font-medium text-gray-700">
+                                YouTube Links
+                            </label>
+                            <div class="mt-1">
+                                <textarea id="youtube_links" name="youtube_links" rows="3"
+                                    class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border border-gray-300 rounded-md"
+                                    placeholder="Enter valid YouTube URLs separated by commas"><?php echo htmlspecialchars($organization['youtube_links'] ?? ''); ?></textarea>
+                            </div>
+                            <p class="mt-2 text-sm text-gray-500">Add YouTube links as a comma-separated list.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pt-5">
+                <div class="flex justify-end">
+                    <button type="submit"
+                        class="ml-3 inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        Save Changes
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <div class="mt-10 bg-white shadow sm:rounded-lg">
+        <div class="px-4 py-5 sm:p-6">
+            <h3 class="text-lg leading-6 font-medium text-red-700">
+                Danger Zone
+            </h3>
+            <div class="mt-2 max-w-xl text-sm text-gray-500">
+                <p>
+                    Permanently delete this organization profile. This action cannot be undone, and you will lose all
+                    data and bookings associated with it. You will be signed out immediately.
+                </p>
+            </div>
+            <div class="mt-5 border-t border-gray-200 pt-5 text-right">
+                <form action="/org-admin/profile/delete" method="POST"
+                    onsubmit="return confirm('Are you absolutely sure you want to delete this organization? This action CANNOT be undone.');">
+                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken ?? ''); ?>">
+                    <button type="submit"
+                        class="inline-flex items-center justify-center px-4 py-2 border border-transparent font-medium rounded-md text-red-700 bg-red-100 hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:text-sm">
+                        Delete Organization
+                    </button>
+                </form>
+            </div>
         </div>
-    </form>
+    </div>
 </div>
-
-<?php $content = ob_get_clean(); include app_path('views/layout/app.php'); ?>
+<?php
+$content = ob_get_clean();
+include app_path('views/layout/app.php');
+?>

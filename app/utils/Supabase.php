@@ -22,7 +22,8 @@ class Supabase
 
         if (class_exists('\Supabase\\GoTrue\\GoTrue')) {
             try {
-                $this->auth = new (\Supabase\GoTrue\GoTrue::class)([
+                $goTrueClass = '\Supabase\GoTrue\GoTrue';
+                $this->auth = new $goTrueClass([
                     'autoRefreshToken' => true,
                     'persistSession' => false,
                     'detectSessionInUrl' => true,
@@ -301,9 +302,9 @@ class Supabase
 
         $adminHeaders = array_merge([
             'Authorization' => 'Bearer ' . $this->secretKey,
-            'apikey'        => $this->secretKey,
-            'Content-Type'  => 'application/json',
-            'Prefer'        => 'return=representation',
+            'apikey' => $this->secretKey,
+            'Content-Type' => 'application/json',
+            'Prefer' => 'return=representation',
         ], $extraHeaders);
 
         return $this->makeRequest($method, $endpoint, $data, $adminHeaders);
@@ -341,7 +342,7 @@ class Supabase
         $decoded = json_decode($response, true);
 
         if (json_last_error() !== JSON_ERROR_NONE) {
-            throw new \Exception('Invalid response from Supabase');
+            throw new \Exception('Invalid response from Supabase: ' . $response);
         }
 
         if (isset($decoded['error'])) {
