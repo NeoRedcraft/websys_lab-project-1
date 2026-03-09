@@ -166,9 +166,43 @@ class Organization
 
     public function delete($orgId, $accessToken = null)
     {
+        $orgId = (int) $orgId;
+        if ($orgId <= 0) {
+            return false;
+        }
+
         try {
-            $response = $this->supabase->delete('organizations', $orgId, $accessToken);
-            return !empty($response['success']);
+            // Unassign users first to satisfy users_extended.org_id foreign key constraints.
+            $this->supabase->adminRequest(
+                'PATCH',
+                '/rest/v1/users_extended?org_id=eq.' . rawurlencode((string) $orgId),
+                [
+                    'org_id' => null,
+                    'updated_at' => date('Y-m-d H:i:s'),
+                ],
+                ['Prefer' => 'return=minimal']
+            );
+
+            $deletedRows = $this->supabase->adminRequest(
+                'DELETE',
+                '/rest/v1/organizations?id=eq.' . rawurlencode((string) $orgId),
+                [],
+                ['Prefer' => 'return=representation']
+            );
+
+            if (is_array($deletedRows) && count($deletedRows) > 0) {
+                return true;
+            }
+
+            // Fallback verification when API returns minimal payload.
+            $remaining = $this->supabase->adminRequest(
+                'GET',
+                '/rest/v1/organizations?select=id&id=eq.' . rawurlencode((string) $orgId) . '&limit=1',
+                [],
+                ['Prefer' => 'return=representation']
+            );
+
+            return is_array($remaining) && count($remaining) === 0;
         } catch (\Exception $e) {
             error_log('Error deleting organization: ' . $e->getMessage());
             return false;

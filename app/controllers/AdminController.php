@@ -219,12 +219,29 @@ class AdminController
 
             $presidentMessage = '';
             if ($presidentName !== '' && $presidentEmail !== '') {
-                if ($this->userModel->getByEmail($presidentEmail)) {
-                    $presidentMessage = ' Organization created. President email already exists; assign role from User Management.';
+                $matchedPresident = $this->userModel->getByEmail($presidentEmail);
+                $orgAdminRoleId = $this->userModel->getRoleIdByName('org_admin') ?? 2;
+
+                if ($matchedPresident) {
+                    $updatedPresident = $this->userModel->adminUpdateUserProfile(
+                        $matchedPresident['id'],
+                        $presidentName,
+                        $presidentEmail,
+                        $orgAdminRoleId,
+                        (int) $result
+                    );
+
+                    if (!$updatedPresident) {
+                        $presidentMessage = ' Existing president account could not be reassigned.';
+                    } else {
+                        $presidentMessage = ' Existing president account was reassigned to org admin for this organization.';
+                    }
                 } else {
-                    $createPresident = $this->userModel->adminCreateUser($presidentEmail, $presidentName, 2, (int) $result);
+                    $createPresident = $this->userModel->adminCreateUser($presidentEmail, $presidentName, $orgAdminRoleId, (int) $result);
                     if (!$createPresident['success']) {
-                        $presidentMessage = ' Organization created, but president account creation failed: ' . ($createPresident['error'] ?? 'Unknown error');
+                        $presidentMessage = ' President account creation failed: ' . ($createPresident['error'] ?? 'Unknown error');
+                    } elseif (!empty($createPresident['existing_user_relinked'])) {
+                        $presidentMessage = ' Existing auth account was linked and assigned as org admin for this organization.';
                     } else {
                         $presidentMessage = ' President account created. Temporary password: ' . ($createPresident['temp_password'] ?? 'generated');
                     }
@@ -426,6 +443,15 @@ class AdminController
             redirect('/admin/organizations?error=' . urlencode('Organization not found'));
         }
 
+        $previousPresident = $this->getOrganizationPresident($orgId);
+        if (!empty($previousPresident['id'])) {
+            $organizerRoleId = $this->userModel->getRoleIdByName('organizer') ?? 3;
+            $downgraded = $this->userModel->adminUpdateRole($previousPresident['id'], $organizerRoleId, null);
+            if (!$downgraded) {
+                redirect('/admin/organizations?error=' . urlencode('Failed to reassign the current president to organizer before deleting organization.'));
+            }
+        }
+
         $deleted = $this->organizationModel->delete($orgId, $accessToken);
 
         if (!$deleted) {
@@ -434,7 +460,12 @@ class AdminController
 
         $this->auditLog->logOrganization(get_user()['id'], 'deleted', $orgId, $organization, []);
 
-        redirect('/admin/organizations?success=Organization deleted');
+        $successMessage = 'Organization deleted';
+        if (!empty($previousPresident['email'])) {
+            $successMessage .= ' and assigned president role was reverted to organizer';
+        }
+
+        redirect('/admin/organizations?success=' . urlencode($successMessage));
     }
 
     public function activateOrganization($params = [])

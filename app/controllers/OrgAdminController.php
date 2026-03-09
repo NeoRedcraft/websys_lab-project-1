@@ -193,7 +193,6 @@ class OrgAdminController
                 'technical_requirements' => $technicalRequirements,
                 'youtube_links' => $youtubeLinks,
                 'updated_at' => date('Y-m-d H:i:s'),
-            ], $accessToken);
             ];
 
             if (!empty($_FILES['image']['name'])) {

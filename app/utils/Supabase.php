@@ -334,15 +334,36 @@ class Supabase
         ]);
 
         $response = @file_get_contents($url, false, $context);
+        $responseHeaders = isset($http_response_header) && is_array($http_response_header) ? $http_response_header : [];
+        $statusCode = $this->extractHttpStatusCode($responseHeaders);
 
         if ($response === false) {
             throw new \Exception('Failed to connect to Supabase');
+        }
+
+        if (trim($response) === '') {
+            if ($statusCode >= 400) {
+                throw new \Exception('Supabase request failed with HTTP ' . $statusCode);
+            }
+            return [];
         }
 
         $decoded = json_decode($response, true);
 
         if (json_last_error() !== JSON_ERROR_NONE) {
             throw new \Exception('Invalid response from Supabase: ' . $response);
+        }
+
+        if ($statusCode >= 400) {
+            $errorMessage = null;
+            if (is_array($decoded)) {
+                $errorMessage = $decoded['message']
+                    ?? $decoded['error_description']
+                    ?? $decoded['hint']
+                    ?? null;
+            }
+
+            throw new \Exception($errorMessage ? ('Supabase request failed: ' . $errorMessage) : ('Supabase request failed with HTTP ' . $statusCode));
         }
 
         if (isset($decoded['error'])) {
@@ -353,7 +374,26 @@ class Supabase
             throw new \Exception($decoded['msg'] ?? $decoded['error_code'] ?? 'Authentication error');
         }
 
+        if (isset($decoded['message']) && isset($decoded['code'])) {
+            throw new \Exception((string) $decoded['message']);
+        }
+
         return $decoded;
+    }
+
+    private function extractHttpStatusCode(array $headers)
+    {
+        foreach ($headers as $headerLine) {
+            if (!is_string($headerLine)) {
+                continue;
+            }
+
+            if (preg_match('/^HTTP\/\S+\s+(\d{3})\b/i', $headerLine, $matches)) {
+                return (int) $matches[1];
+            }
+        }
+
+        return 200;
     }
 
     private function buildHeaders($headers)

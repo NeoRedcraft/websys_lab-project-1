@@ -32,9 +32,21 @@ class User
      */
     public function getByEmail($email)
     {
+        $email = trim((string) $email);
+        if ($email === '') {
+            return null;
+        }
+
         try {
             $response = $this->supabase->query('users_extended', '*', ['email' => $email]);
-            return $response['success'] ? $response['data'][0] ?? null : null;
+            if (!empty($response['success']) && !empty($response['data'][0])) {
+                return $response['data'][0];
+            }
+
+            // Fallback for admin flows where RLS can hide rows from anon-scoped queries.
+            $endpoint = '/rest/v1/users_extended?select=*&email=ilike.' . rawurlencode($email) . '&limit=1';
+            $rows = $this->supabase->adminRequest('GET', $endpoint, [], ['Prefer' => 'return=representation']);
+            return is_array($rows) ? ($rows[0] ?? null) : null;
         } catch (\Exception $e) {
             error_log('Error fetching user by email: ' . $e->getMessage());
             return null;
@@ -183,6 +195,9 @@ class User
      */
     public function adminCreateUser($email, $fullName, $roleId, $orgId = null)
     {
+        $email = trim((string) $email);
+        $fullName = trim((string) $fullName);
+
         try {
             $tempPassword = 'ChangeMe2025!';
 
@@ -201,24 +216,7 @@ class User
                 return ['success' => false, 'error' => 'Failed to create auth user'];
             }
 
-            $profilePayload = [[
-                'id' => $authUserId,
-                'email' => $email,
-                'full_name' => $fullName,
-                'role_id' => (int) $roleId,
-                'org_id' => $orgId ? (int) $orgId : null,
-                'is_active' => true,
-            ]];
-
-            $this->supabase->adminRequest(
-                'POST',
-                '/rest/v1/users_extended',
-                $profilePayload,
-                [
-                    'Prefer' => 'resolution=merge-duplicates,return=representation',
-                    'Content-Type' => 'application/json',
-                ]
-            );
+            $this->upsertUsersExtendedProfile($authUserId, $email, $fullName, $roleId, $orgId);
 
             return [
                 'success' => true,
@@ -226,6 +224,30 @@ class User
                 'temp_password' => $tempPassword,
             ];
         } catch (\Exception $e) {
+            // If auth user already exists, link/update users_extended instead of failing creation.
+            if ($this->isAuthUserAlreadyExistsError($e)) {
+                try {
+                    $existingAuthUser = $this->findAuthUserByEmail($email);
+                    $existingAuthUserId = is_array($existingAuthUser) ? ($existingAuthUser['id'] ?? null) : null;
+
+                    if ($existingAuthUserId) {
+                        $this->upsertUsersExtendedProfile($existingAuthUserId, $email, $fullName, $roleId, $orgId);
+
+                        return [
+                            'success' => true,
+                            'user_id' => $existingAuthUserId,
+                            'temp_password' => null,
+                            'existing_user_relinked' => true,
+                        ];
+                    }
+                } catch (\Exception $inner) {
+                    return [
+                        'success' => false,
+                        'error' => $inner->getMessage(),
+                    ];
+                }
+            }
+
             return [
                 'success' => false,
                 'error' => $e->getMessage(),
@@ -273,5 +295,110 @@ class User
             error_log('Error updating admin user profile: ' . $e->getMessage());
             return false;
         }
+    }
+
+    /**
+     * Resolve a role ID by role name (e.g., organizer, org_admin).
+     */
+    public function getRoleIdByName($roleName)
+    {
+        $roleName = trim((string) $roleName);
+        if ($roleName === '') {
+            return null;
+        }
+
+        try {
+            $endpoint = '/rest/v1/roles?select=id,name&name=eq.' . rawurlencode($roleName) . '&limit=1';
+            $rows = $this->supabase->adminRequest('GET', $endpoint, [], ['Prefer' => 'return=representation']);
+
+            if (!is_array($rows) || empty($rows[0]['id'])) {
+                return null;
+            }
+
+            return (int) $rows[0]['id'];
+        } catch (\Exception $e) {
+            error_log('Error resolving role ID for ' . $roleName . ': ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    private function upsertUsersExtendedProfile($userId, $email, $fullName, $roleId, $orgId = null)
+    {
+        $userId = (string) $userId;
+        $profileData = [
+            'email' => (string) $email,
+            'full_name' => (string) $fullName,
+            'role_id' => (int) $roleId,
+            'org_id' => $orgId ? (int) $orgId : null,
+            'is_active' => true,
+            'updated_at' => date('Y-m-d H:i:s'),
+        ];
+
+        $existing = $this->supabase->adminRequest(
+            'GET',
+            '/rest/v1/users_extended?select=id&id=eq.' . rawurlencode($userId) . '&limit=1',
+            [],
+            ['Prefer' => 'return=representation']
+        );
+
+        if (is_array($existing) && !empty($existing[0]['id'])) {
+            $this->supabase->adminRequest(
+                'PATCH',
+                '/rest/v1/users_extended?id=eq.' . rawurlencode($userId),
+                $profileData,
+                [
+                    'Prefer' => 'return=representation',
+                    'Content-Type' => 'application/json',
+                ]
+            );
+            return;
+        }
+
+        $insertPayload = array_merge(['id' => $userId], $profileData);
+        $this->supabase->adminRequest(
+            'POST',
+            '/rest/v1/users_extended',
+            $insertPayload,
+            [
+                'Prefer' => 'return=representation',
+                'Content-Type' => 'application/json',
+            ]
+        );
+    }
+
+    private function findAuthUserByEmail($email)
+    {
+        $needle = strtolower(trim((string) $email));
+
+        // Auth admin endpoint is paginated; scan a bounded number of pages.
+        for ($page = 1; $page <= 20; $page++) {
+            $endpoint = '/auth/v1/admin/users?page=' . $page . '&per_page=200';
+            $response = $this->supabase->adminRequest('GET', $endpoint, [], ['Prefer' => 'return=representation']);
+            $users = is_array($response) && isset($response['users']) && is_array($response['users'])
+                ? $response['users']
+                : [];
+
+            foreach ($users as $user) {
+                $candidate = strtolower(trim((string) ($user['email'] ?? '')));
+                if ($candidate !== '' && $candidate === $needle) {
+                    return $user;
+                }
+            }
+
+            if (count($users) < 200) {
+                break;
+            }
+        }
+
+        return null;
+    }
+
+    private function isAuthUserAlreadyExistsError(\Exception $e)
+    {
+        $message = strtolower((string) $e->getMessage());
+        return strpos($message, 'http 422') !== false
+            || strpos($message, 'already') !== false
+            || strpos($message, 'registered') !== false
+            || strpos($message, 'duplicate') !== false;
     }
 }
