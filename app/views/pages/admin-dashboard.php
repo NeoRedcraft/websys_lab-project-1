@@ -20,17 +20,24 @@ ob_start();
     $orgs = isset($organizations) ? $organizations : [];
     $logs = isset($auditLogs) ? $auditLogs : [];
     $totalOrgs = is_array($orgs) ? count($orgs) : 0;
-    $totalLogs = is_array($logs) ? count($logs) : 0;
+    $decodeAuditPayload = function ($value) {
+        if (is_array($value)) {
+            return $value;
+        }
+
+        if (!is_string($value) || trim($value) === '') {
+            return [];
+        }
+
+        $decoded = json_decode($value, true);
+        return json_last_error() === JSON_ERROR_NONE && is_array($decoded) ? $decoded : [];
+    };
     ?>
 
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <div class="bg-white p-6 rounded-lg shadow-md">
             <h3 class="text-lg font-medium mb-2">Organizations</h3>
             <p class="text-3xl font-bold text-red-600"><?php echo $totalOrgs; ?></p>
-        </div>
-        <div class="bg-white p-6 rounded-lg shadow-md">
-            <h3 class="text-lg font-medium mb-2">Audit Entries</h3>
-            <p class="text-3xl font-bold text-red-600"><?php echo $totalLogs; ?></p>
         </div>
         <div class="bg-white p-6 rounded-lg shadow-md">
             <h3 class="text-lg font-medium mb-2">Pending Bookings</h3>
@@ -65,10 +72,20 @@ ob_start();
                 <p class="text-gray-600">No audit logs available.</p>
             <?php else: ?>
                 <ul class="space-y-3">
-                    <?php foreach (array_slice($logs, 0, 10) as $log): ?>
+                    <?php foreach ($logs as $log): ?>
                         <li class="border rounded p-3">
-                            <div class="text-sm text-gray-500"><?php echo $log['created_at'] ?? ''; ?> — <?php echo $log['action'] ?? ''; ?></div>
-                            <div class="text-base font-medium"><?php echo $log['description'] ?? ($log['entity'] ?? ''); ?></div>
+                            <?php
+                            $entityType = (string) ($log['entity_type'] ?? 'entity');
+                            $entityId = isset($log['entity_id']) ? (string) $log['entity_id'] : 'n/a';
+                            $actor = (string) ($log['user_email'] ?? $log['user_id'] ?? 'system');
+                            $newValues = $decodeAuditPayload($log['new_values'] ?? null);
+                            $changedFields = array_keys($newValues);
+                            ?>
+                            <div class="text-sm text-gray-500"><?php echo htmlspecialchars((string) ($log['created_at'] ?? '')); ?> - <?php echo htmlspecialchars((string) ($log['action'] ?? '')); ?></div>
+                            <div class="text-base font-medium"><?php echo htmlspecialchars($entityType); ?> #<?php echo htmlspecialchars($entityId); ?> by <?php echo htmlspecialchars($actor); ?></div>
+                            <?php if (!empty($changedFields)): ?>
+                                <div class="text-sm text-gray-600">Changed: <?php echo htmlspecialchars(implode(', ', $changedFields)); ?></div>
+                            <?php endif; ?>
                         </li>
                     <?php endforeach; ?>
                 </ul>

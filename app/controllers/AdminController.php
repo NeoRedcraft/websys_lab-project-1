@@ -6,6 +6,7 @@ use App\Middleware\Gatekeeper;
 use App\Models\User;
 use App\Models\Organization;
 use App\Models\AuditLog;
+use App\Models\BookingRequest;
 
 class AdminController
 {
@@ -13,6 +14,7 @@ class AdminController
     private $userModel;
     private $organizationModel;
     private $auditLog;
+    private $bookingRequest;
 
     public function __construct()
     {
@@ -20,6 +22,7 @@ class AdminController
         $this->userModel = new User();
         $this->organizationModel = new Organization();
         $this->auditLog = new AuditLog();
+        $this->bookingRequest = new BookingRequest();
 
         $this->gatekeeper->requireAdmin();
     }
@@ -27,12 +30,14 @@ class AdminController
     public function dashboard($params = [])
     {
         $user = get_user();
-        $auditLogs = $this->auditLog->getAll(50);
+        $auditLogs = $this->auditLog->getAll(1000);
+        $bookingStats = $this->bookingRequest->getStats(null, session_get('access_token'));
         $organizations = $this->organizationModel->getAllForAdmin(session_get('access_token'));
 
         return view('pages/admin-dashboard', [
             'user' => $user,
             'auditLogs' => $auditLogs,
+            'stats' => $bookingStats,
             'organizations' => $organizations,
             'csrfToken' => csrf_token(),
             'homeBannerUrl' => get_home_banner_url(),

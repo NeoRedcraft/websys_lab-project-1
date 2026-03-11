@@ -266,8 +266,12 @@ class OrgAdminController
                 'error' => 'Failed to delete organization',
                 'csrfToken' => csrf_token(),
             ]);
-            redirect('/org-admin/profile?success=' . urlencode('Profile updated successfully'));
         }
+
+        $this->auditLog->logOrganization($user['id'], 'deleted', $orgId, $organization, []);
+
+        session_flush();
+        redirect('/?success=' . urlencode('Organization deleted successfully'));
     }
 
     public function acceptAdminProfileChanges($params = [])
@@ -402,13 +406,6 @@ class OrgAdminController
         if (is_array($value)) {
             return $value;
         }
-
-        // Log organization deletion
-        $this->auditLog->logOrganization($user['id'], 'deleted', $orgId, $organization, []);
-
-        // Sign out user since their org no longer exists
-        session_flush();
-        redirect('/?success=Organization deleted successfully');
 
         if (!is_string($value) || trim($value) === '') {
             return null;
