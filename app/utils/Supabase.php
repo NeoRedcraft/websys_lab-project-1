@@ -63,10 +63,17 @@ class Supabase
                 'data' => $metadata,
             ]);
 
+            $userPayload = is_array($response) && isset($response['user']) && is_array($response['user'])
+                ? $response['user']
+                : $response;
+
+            $userId = is_array($userPayload) ? ($userPayload['id'] ?? null) : null;
+
             return [
                 'success' => true,
                 'data' => [
-                    'user' => $response,
+                    'user' => $userPayload,
+                    'user_id' => $userId,
                     'access_token' => null,
                     'refresh_token' => null,
                 ],

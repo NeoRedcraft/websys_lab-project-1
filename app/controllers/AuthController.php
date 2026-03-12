@@ -176,8 +176,12 @@ class AuthController
                 ]);
             }
 
-            $data = $result['data'];
-            $userId = $data['user']['id'] ?? null;
+            $data = $result['data'] ?? [];
+            $userId = $data['user']['id']
+                ?? $data['user']['user']['id']
+                ?? $data['user_id']
+                ?? $data['id']
+                ?? null;
 
             if (!$userId) {
                 $this->auditLog->logAuth(null, 'signup_failed', 'missing_user_id', [
