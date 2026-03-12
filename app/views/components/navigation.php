@@ -12,6 +12,13 @@ $navLinkClasses = static function (bool $isActive): string {
         : 'border-transparent text-gray-700 hover:text-red-600');
 };
 
+$mobileNavLinkClasses = static function (bool $isActive): string {
+    $base = 'block px-2 py-2 rounded-md transition ';
+    return $base . ($isActive
+        ? 'bg-red-50 text-red-700'
+        : 'text-gray-700 hover:bg-gray-50 hover:text-red-600');
+};
+
 $matchesRoute = static function (array $exact = [], array $prefixes = []) use ($requestPath): bool {
     foreach ($exact as $path) {
         if ($requestPath === $path) {
@@ -27,6 +34,22 @@ $matchesRoute = static function (array $exact = [], array $prefixes = []) use ($
 
     return false;
 };
+
+$isAuthed = auth_check();
+$role = $isAuthed ? session_get('role') : null;
+$bookingsPath = null;
+$accountAreaActive = $matchesRoute(
+    ['/admin', '/admin/dashboard', '/org-admin', '/org-admin/dashboard', '/dashboard', '/organizer-dashboard', '/account'],
+    ['/admin/', '/org-admin/profile', '/org-admin/statistics', '/account/']
+);
+
+if ($role === 'system_admin') {
+    $bookingsPath = '/bookings';
+} elseif ($role === 'org_admin') {
+    $bookingsPath = '/org-admin/bookings';
+} elseif ($role === 'organizer') {
+    $bookingsPath = '/bookings';
+}
 ?>
 
 <nav class="bg-white shadow-md">
@@ -38,28 +61,28 @@ $matchesRoute = static function (array $exact = [], array $prefixes = []) use ($
                 </a>
             </div>
 
+            <button
+                type="button"
+                class="md:hidden inline-flex items-center justify-center rounded-md p-2 text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-red-500"
+                id="mobile-nav-toggle"
+                aria-controls="mobile-nav-menu"
+                aria-expanded="false"
+                onclick="var m=document.getElementById('mobile-nav-menu');var ex=this.getAttribute('aria-expanded')==='true';this.setAttribute('aria-expanded',ex?'false':'true');if(m){m.classList.toggle('hidden');}"
+            >
+                <span class="sr-only">Open main menu</span>
+                <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <line x1="3" y1="6" x2="21" y2="6"></line>
+                    <line x1="3" y1="12" x2="21" y2="12"></line>
+                    <line x1="3" y1="18" x2="21" y2="18"></line>
+                </svg>
+            </button>
+
             <div class="hidden md:flex items-center space-x-8">
                 <a href="/" class="<?php echo $navLinkClasses($matchesRoute(['/'])); ?>">Home</a>
                 <a href="/directory" class="<?php echo $navLinkClasses($matchesRoute(['/directory', '/search-results'], ['/organizations/'])); ?>">Talent Directory</a>
                 <a href="/calendar" class="<?php echo $navLinkClasses($matchesRoute(['/calendar'])); ?>">Calendar</a>
                 
-                <?php if (auth_check()): ?>
-                    <?php
-                    $role = session_get('role');
-                    $bookingsPath = null;
-                    $accountAreaActive = $matchesRoute(
-                        ['/admin', '/admin/dashboard', '/org-admin', '/org-admin/dashboard', '/dashboard', '/organizer-dashboard', '/account'],
-                        ['/admin/', '/org-admin/profile', '/org-admin/statistics', '/account/']
-                    );
-
-                    if ($role === 'system_admin') {
-                        $bookingsPath = '/bookings';
-                    } elseif ($role === 'org_admin') {
-                        $bookingsPath = '/org-admin/bookings';
-                    } elseif ($role === 'organizer') {
-                        $bookingsPath = '/bookings';
-                    }
-                    ?>
+                <?php if ($isAuthed): ?>
                     <?php if ($bookingsPath): ?>
                         <a href="<?php echo $bookingsPath; ?>" class="<?php echo $navLinkClasses($matchesRoute([], ['/bookings', '/org-admin/bookings'])); ?>">Bookings</a>
                     <?php endif; ?>
@@ -89,6 +112,37 @@ $matchesRoute = static function (array $exact = [], array $prefixes = []) use ($
                 <?php else: ?>
                     <a href="/signin" class="<?php echo $navLinkClasses($matchesRoute(['/signin'])); ?>">Sign In</a>
                     <a href="/signup" class="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700">Sign Up</a>
+                <?php endif; ?>
+            </div>
+        </div>
+
+        <div id="mobile-nav-menu" class="hidden md:hidden border-t border-gray-200 py-3">
+            <div class="space-y-1">
+                <a href="/" class="<?php echo $mobileNavLinkClasses($matchesRoute(['/'])); ?>">Home</a>
+                <a href="/directory" class="<?php echo $mobileNavLinkClasses($matchesRoute(['/directory', '/search-results'], ['/organizations/'])); ?>">Talent Directory</a>
+                <a href="/calendar" class="<?php echo $mobileNavLinkClasses($matchesRoute(['/calendar'])); ?>">Calendar</a>
+
+                <?php if ($isAuthed): ?>
+                    <?php if ($bookingsPath): ?>
+                        <a href="<?php echo $bookingsPath; ?>" class="<?php echo $mobileNavLinkClasses($matchesRoute([], ['/bookings', '/org-admin/bookings'])); ?>">Bookings</a>
+                    <?php endif; ?>
+
+                    <?php if (user_has_role('system_admin')): ?>
+                        <a href="/admin" class="<?php echo $mobileNavLinkClasses($matchesRoute(['/admin', '/admin/dashboard'], ['/admin/'])); ?>">Admin Dashboard</a>
+                        <a href="/admin/users" class="<?php echo $mobileNavLinkClasses($matchesRoute(['/admin/users'], ['/admin/users'])); ?>">User Management</a>
+                    <?php endif; ?>
+                    <?php if (user_has_role('org_admin')): ?>
+                        <a href="/org-admin" class="<?php echo $mobileNavLinkClasses($matchesRoute(['/org-admin', '/org-admin/dashboard'], ['/org-admin/'])); ?>">Org Admin Dashboard</a>
+                    <?php endif; ?>
+                    <?php if (user_has_role('organizer')): ?>
+                        <a href="/dashboard" class="<?php echo $mobileNavLinkClasses($matchesRoute(['/dashboard', '/organizer-dashboard'])); ?>">Dashboard</a>
+                    <?php endif; ?>
+
+                    <a href="/account" class="<?php echo $mobileNavLinkClasses($matchesRoute(['/account'], ['/account/'])); ?>">Account Settings</a>
+                    <a href="/signout" class="<?php echo $mobileNavLinkClasses(false); ?> border-t border-gray-100 mt-2 pt-3">Sign Out</a>
+                <?php else: ?>
+                    <a href="/signin" class="<?php echo $mobileNavLinkClasses($matchesRoute(['/signin'])); ?>">Sign In</a>
+                    <a href="/signup" class="block mt-2 bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 text-center">Sign Up</a>
                 <?php endif; ?>
             </div>
         </div>
