@@ -93,6 +93,8 @@ class Supabase
             return $local->signIn($email, $password);
         }
 
+        $email = strtolower(trim((string) $email));
+
         try {
             $response = $this->makeRequest('POST', '/auth/v1/token?grant_type=password', [
                 'email' => $email,
@@ -106,9 +108,19 @@ class Supabase
             return ['success' => true, 'data' => $response];
 
         } catch (\Exception $e) {
+            $errorMessage = (string) $e->getMessage();
+
+            if (stripos($errorMessage, 'invalid login credentials') !== false) {
+                $errorMessage = 'Invalid email or password.';
+            } elseif (stripos($errorMessage, 'email not confirmed') !== false) {
+                $errorMessage = 'Email is not yet confirmed.';
+            } elseif (stripos($errorMessage, 'http 400') !== false) {
+                $errorMessage = 'Sign in request was rejected. Please check your credentials and try again.';
+            }
+
             return [
                 'success' => false,
-                'error' => $e->getMessage(),
+                'error' => $errorMessage,
             ];
         }
     }

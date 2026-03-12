@@ -7,6 +7,7 @@ use App\Utils\Supabase;
 class User
 {
     private $supabase;
+    private $lastError = null;
 
     public function __construct()
     {
@@ -58,22 +59,50 @@ class User
      */
     public function create($userId, $email, $fullName, $roleId, $orgId = null, $accessToken = null)
     {
-        try {
-            $data = [
-                'id' => $userId,
-                'email' => $email,
-                'full_name' => $fullName,
-                'role_id' => $roleId,
-                'org_id' => $orgId,
-                'is_active' => true
-            ];
+        $this->lastError = null;
+        $userId = trim((string) $userId);
+        $email = trim((string) $email);
+        $fullName = trim((string) $fullName);
+        $resolvedRoleId = (int) $roleId;
 
-            $response = $this->supabase->insert('users_extended', $data, $accessToken);
-            return $response['success'] ? $response['data'][0] ?? true : false;
-        } catch (\Exception $e) {
-            error_log('Error creating user: ' . $e->getMessage());
+        if ($userId === '' || $email === '' || $fullName === '' || $resolvedRoleId <= 0) {
+            $this->lastError = 'Invalid profile payload for users_extended.';
             return false;
         }
+
+        $data = [
+            'id' => $userId,
+            'email' => $email,
+            'full_name' => $fullName,
+            'role_id' => $resolvedRoleId,
+            'org_id' => $orgId,
+            'is_active' => true
+        ];
+
+        $response = $this->supabase->insert('users_extended', $data, $accessToken);
+        if (!empty($response['success'])) {
+            return $response['data'][0] ?? true;
+        }
+
+        $insertError = (string) ($response['error'] ?? 'Unknown insert failure while creating users_extended profile');
+        $this->lastError = $insertError;
+        error_log('Error creating user: ' . $insertError);
+
+        // Fallback to service-role upsert for environments where RLS blocks normal inserts.
+        try {
+            $this->upsertUsersExtendedProfile($userId, $email, $fullName, $resolvedRoleId, $orgId);
+            $this->lastError = null;
+            return true;
+        } catch (\Exception $inner) {
+            $this->lastError = $inner->getMessage();
+            error_log('Error creating user via admin upsert: ' . $inner->getMessage());
+            return false;
+        }
+    }
+
+    public function getLastError()
+    {
+        return $this->lastError;
     }
 
     /**
@@ -331,11 +360,20 @@ class User
             $rows = $this->supabase->adminRequest('GET', $endpoint, [], ['Prefer' => 'return=representation']);
 
             if (!is_array($rows) || empty($rows[0]['id'])) {
+                $fallback = $this->supabase->query('roles', 'id,name', ['name' => $roleName]);
+                if (!empty($fallback['success']) && !empty($fallback['data'][0]['id'])) {
+                    return (int) $fallback['data'][0]['id'];
+                }
                 return null;
             }
 
             return (int) $rows[0]['id'];
         } catch (\Exception $e) {
+            $fallback = $this->supabase->query('roles', 'id,name', ['name' => $roleName]);
+            if (!empty($fallback['success']) && !empty($fallback['data'][0]['id'])) {
+                return (int) $fallback['data'][0]['id'];
+            }
+
             error_log('Error resolving role ID for ' . $roleName . ': ' . $e->getMessage());
             return null;
         }

@@ -36,12 +36,19 @@ class AuthController
         }
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            $email = $_POST['email'] ?? '';
+            $email = strtolower(trim((string) ($_POST['email'] ?? '')));
             $password = $_POST['password'] ?? '';
 
             if (!$email || !$password) {
                 return view('auth/signin', [
                     'error' => 'Email and password are required',
+                    'csrfToken' => csrf_token(),
+                ]);
+            }
+
+            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                return view('auth/signin', [
+                    'error' => 'Please enter a valid email address.',
                     'csrfToken' => csrf_token(),
                 ]);
             }
@@ -194,19 +201,22 @@ class AuthController
                 ]);
             }
 
+            $organizerRoleId = $this->userModel->getRoleIdByName('organizer') ?? 3;
+
             // Create user in users_extended table with organizer role (default)
             $createUserResult = $this->userModel->create(
                 $userId,
                 $email,
                 $name,
-                3,    // organizer role_id
+                $organizerRoleId,
                 null  // no org
             );
 
             if (!$createUserResult) {
                 error_log("Failed to create user record for {$email} during signup");
+                $creationError = $this->userModel->getLastError();
                 return view('auth/signup', [
-                    'error' => 'Account creation failed. Please try again or contact support.',
+                    'error' => $creationError ? ('Account creation failed: ' . $creationError) : 'Account creation failed. Please try again or contact support.',
                     'csrfToken' => csrf_token(),
                 ]);
             }
