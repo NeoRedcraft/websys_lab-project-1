@@ -30,7 +30,7 @@ class AdminController
     public function dashboard($params = [])
     {
         $user = get_user();
-        $auditLogs = $this->auditLog->getAll(1000);
+        $auditLogs = $this->auditLog->getAll(10);
         $bookingStats = $this->bookingRequest->getStats(null, session_get('access_token'));
         $organizations = $this->organizationModel->getAllForAdmin(session_get('access_token'));
 
