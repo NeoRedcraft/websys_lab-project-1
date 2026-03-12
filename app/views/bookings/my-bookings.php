@@ -57,7 +57,12 @@ ob_start();
                             <td class="px-6 py-4 text-right text-sm font-medium">
                                 <a href="/bookings/view/<?= $booking['id'] ?>" class="text-red-600 hover:text-red-900 mr-3">View</a>
                                 <?php if ($status === 'pending'): ?>
-                                    <a href="/bookings/edit/<?= $booking['id'] ?>" class="text-gray-600 hover:text-gray-900">Edit</a>
+                                    <a href="/bookings/edit/<?= $booking['id'] ?>" class="text-gray-600 hover:text-gray-900 mr-3">Edit</a>
+                                    <form method="post" action="/bookings/delete" class="inline" onsubmit="return confirm('Delete this pending booking?');">
+                                        <input type="hidden" name="booking_id" value="<?= htmlspecialchars((string) ($booking['id'] ?? '')) ?>">
+                                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? '') ?>">
+                                        <button type="submit" class="text-red-700 hover:text-red-900">Delete</button>
+                                    </form>
                                 <?php endif; ?>
                             </td>
                         </tr>

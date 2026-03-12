@@ -535,8 +535,11 @@ class AdminController
 
     public function listUsers($params = [])
     {
-        $users         = $this->userModel->getAll();
-        $organizations = $this->organizationModel->getAll();
+        $success = $_GET['success'] ?? null;
+        $error = $_GET['error'] ?? null;
+
+        $users = $this->userModel->getAll();
+        $organizations = $this->organizationModel->getAllForAdmin(session_get('access_token'));
 
         try {
             $supabase = \App\Utils\Supabase::getInstance();
@@ -546,11 +549,62 @@ class AdminController
             $roles = [];
         }
 
+        $roleNameById = [];
+        foreach ($roles as $role) {
+            if (!is_array($role) || !isset($role['id'])) {
+                continue;
+            }
+
+            $roleNameById[(int) $role['id']] = (string) ($role['name'] ?? 'unknown');
+        }
+
+        $orgNameById = [];
+        foreach ($organizations as $organization) {
+            if (!is_array($organization) || !isset($organization['id'])) {
+                continue;
+            }
+
+            $orgNameById[(int) $organization['id']] = (string) ($organization['name'] ?? '—');
+        }
+
+        foreach ($users as &$user) {
+            if (!is_array($user)) {
+                continue;
+            }
+
+            $roleId = isset($user['role_id']) ? (int) $user['role_id'] : null;
+            $orgId = isset($user['org_id']) ? (int) $user['org_id'] : null;
+
+            if (empty($user['roles']) || !is_array($user['roles'])) {
+                $user['roles'] = [];
+            }
+
+            if (empty($user['organizations']) || !is_array($user['organizations'])) {
+                $user['organizations'] = [];
+            }
+
+            if (empty($user['roles']['name'])) {
+                $user['roles']['name'] = $roleId !== null && isset($roleNameById[$roleId])
+                    ? $roleNameById[$roleId]
+                    : 'unknown';
+            }
+
+            if (empty($user['organizations']['name'])) {
+                $user['organizations']['name'] = $orgId !== null && isset($orgNameById[$orgId])
+                    ? $orgNameById[$orgId]
+                    : '—';
+            }
+        }
+        unset($user);
+
         return view('admin/users-list', [
             'users'         => $users,
             'organizations' => $organizations,
             'roles'         => $roles,
             'csrfToken'     => csrf_token(),
+            'success'       => $success,
+            'error'         => $error,
+            'currentUserId' => get_user()['id'] ?? null,
         ]);
     }
 
@@ -566,12 +620,12 @@ class AdminController
         $orgId = $_POST['org_id'] ?? null;
 
         if (!$userId || !$roleId) {
-            return ['error' => 'User ID and Role ID required'];
+            redirect('/admin/users?error=' . urlencode('User ID and Role ID required'));
         }
 
         $user = $this->userModel->getById($userId);
         if (!$user) {
-            return ['error' => 'User not found'];
+            redirect('/admin/users?error=' . urlencode('User not found'));
         }
 
         $oldRole = $this->userModel->getRole($userId);
@@ -579,7 +633,7 @@ class AdminController
         $updated = $this->userModel->adminUpdateRole($userId, (int)$roleId, $orgId ? (int)$orgId : null);
 
         if (!$updated) {
-            return ['error' => 'Failed to assign role'];
+            redirect('/admin/users?error=' . urlencode('Failed to assign role'));
         }
 
         $this->auditLog->logUser(get_user()['id'], 'role_assigned', $userId, $user, [
@@ -588,7 +642,41 @@ class AdminController
             'org_id' => $orgId,
         ]);
 
-        return ['success' => 'Role assigned successfully'];
+        redirect('/admin/users?success=' . urlencode('Role assigned successfully'));
+    }
+
+    public function deleteUser($params = [])
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            http_response_code(405);
+            return 'Method not allowed';
+        }
+
+        $userId = trim((string) ($_POST['user_id'] ?? ''));
+        if ($userId === '') {
+            redirect('/admin/users?error=' . urlencode('User ID required'));
+        }
+
+        $currentUserId = (string) (get_user()['id'] ?? '');
+        if ($currentUserId !== '' && $currentUserId === $userId) {
+            redirect('/admin/users?error=' . urlencode('You cannot delete your own account'));
+        }
+
+        $user = $this->userModel->getById($userId);
+        if (!$user) {
+            redirect('/admin/users?error=' . urlencode('User not found'));
+        }
+
+        $deleted = $this->userModel->adminDeleteUser($userId);
+        if (!$deleted) {
+            redirect('/admin/users?error=' . urlencode('Failed to delete user'));
+        }
+
+        $this->auditLog->logUser(get_user()['id'], 'deleted', $userId, $user, [
+            'deleted' => true,
+        ]);
+
+        redirect('/admin/users?success=' . urlencode('User deleted successfully'));
     }
 
     public function preregisterPresident($params = [])
@@ -635,8 +723,16 @@ class AdminController
 
     public function auditLogs($params = [])
     {
-        $limit = $_GET['limit'] ?? 100;
-        $userId = $_GET['user_id'] ?? null;
+        $limit = (int) ($_GET['limit'] ?? 100);
+        if ($limit < 1) {
+            $limit = 100;
+        }
+        if ($limit > 1000) {
+            $limit = 1000;
+        }
+
+        $userId = trim((string) ($_GET['user_id'] ?? ''));
+        $users = $this->userModel->getAll();
 
         if ($userId) {
             $logs = $this->auditLog->getByUser($userId, $limit);
@@ -646,6 +742,9 @@ class AdminController
 
         return view('admin/audit-logs', [
             'logs' => $logs,
+            'users' => $users,
+            'selectedUserId' => $userId,
+            'selectedLimit' => $limit,
             'csrfToken' => csrf_token(),
         ]);
     }

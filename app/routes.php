@@ -43,6 +43,7 @@ $router->post('/admin/home-banner/upload', 'AdminController@uploadHomeBanner');
 // User Management
 $router->get('/admin/users', 'AdminController@listUsers');
 $router->post('/admin/users/assign-role', 'AdminController@assignRole');
+$router->post('/admin/users/delete', 'AdminController@deleteUser');
 
 // Pre-register Presidents
 $router->post('/admin/users/preregister-president', 'AdminController@preregisterPresident');

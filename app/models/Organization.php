@@ -251,6 +251,71 @@ class Organization
         }
     }
 
+    /**
+     * Lightweight payload for directory cards.
+     * Avoids expensive per-organization lookups used by admin/detail pages.
+     */
+    public function getDirectoryListings()
+    {
+        try {
+            $organizations = [];
+
+            // Try richer select first, then fall back for older schemas.
+            $candidateSelects = [
+                'id,name,genre,bio,image_url,image,logo_url,is_active',
+                'id,name,genre,bio,image_url,is_active',
+                'id,name,genre,bio,is_active',
+                '*',
+            ];
+
+            foreach ($candidateSelects as $select) {
+                try {
+                    $endpoint = '/rest/v1/organizations?select=' . rawurlencode($select)
+                        . '&is_active=eq.true'
+                        . '&order=name.asc';
+
+                    $rows = $this->supabase->makeRequest('GET', $endpoint, [], []);
+                    if (is_array($rows)) {
+                        $organizations = $rows;
+                        break;
+                    }
+                } catch (\Exception $e) {
+                    // Keep trying the next select shape.
+                    continue;
+                }
+            }
+
+            if (!is_array($organizations)) {
+                $organizations = [];
+            }
+
+            if (empty($organizations)) {
+                // Last-resort fallback to the stable existing path.
+                $organizations = $this->getAll();
+                if (!is_array($organizations)) {
+                    return [];
+                }
+            }
+
+            $countByOrgId = $this->getUpcomingAcceptedBookingCountsByOrganization();
+
+            foreach ($organizations as &$organization) {
+                if (!is_array($organization)) {
+                    continue;
+                }
+
+                $organization = $this->normalizeImageUrl($organization);
+                $orgIdKey = (string) ((int) ($organization['id'] ?? 0));
+                $organization['upcoming_bookings_count'] = $countByOrgId[$orgIdKey] ?? 0;
+            }
+
+            return $organizations;
+        } catch (\Exception $e) {
+            error_log('Error fetching lightweight directory organizations: ' . $e->getMessage());
+            return [];
+        }
+    }
+
     public function searchActiveByTerm($query)
     {
         try {
@@ -452,6 +517,41 @@ class Organization
         }
 
         return $organization;
+    }
+
+    private function getUpcomingAcceptedBookingCountsByOrganization()
+    {
+        try {
+            $today = date('Y-m-d');
+            $endpoint = '/rest/v1/booking_requests?select=organization_id'
+                . '&status=eq.accepted'
+                . '&event_date=gte.' . rawurlencode($today);
+
+            $rows = $this->supabase->adminRequest('GET', $endpoint, [], ['Prefer' => 'return=representation']);
+            if (!is_array($rows)) {
+                return [];
+            }
+
+            $counts = [];
+            foreach ($rows as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+
+                $orgId = (int) ($row['organization_id'] ?? 0);
+                if ($orgId <= 0) {
+                    continue;
+                }
+
+                $key = (string) $orgId;
+                $counts[$key] = ($counts[$key] ?? 0) + 1;
+            }
+
+            return $counts;
+        } catch (\Exception $e) {
+            error_log('Error fetching aggregated booking counts: ' . $e->getMessage());
+            return [];
+        }
     }
 
     private function getLatestUploadedImagePath($orgId)

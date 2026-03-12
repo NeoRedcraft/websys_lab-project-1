@@ -74,6 +74,7 @@ $matchesRoute = static function (array $exact = [], array $prefixes = []) use ($
                         <div class="absolute right-0 top-full mt-1 w-48 bg-white rounded-md shadow-lg opacity-0 invisible pointer-events-none group-hover:opacity-100 group-hover:visible group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:visible group-focus-within:pointer-events-auto transition-opacity">
                             <?php if (user_has_role('system_admin')): ?>
                                 <a href="/admin" class="block px-4 py-2 text-gray-700 hover:bg-red-50">Admin Dashboard</a>
+                                <a href="/admin/users" class="block px-4 py-2 text-gray-700 hover:bg-red-50">User Management</a>
                             <?php endif; ?>
                             <?php if (user_has_role('org_admin')): ?>
                                 <a href="/org-admin" class="block px-4 py-2 text-gray-700 hover:bg-red-50">Org Admin Dashboard</a>

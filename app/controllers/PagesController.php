@@ -120,13 +120,11 @@ class PagesController
     public function apiGetDirectoryOrganizations($params = [])
     {
         header('Content-Type: application/json');
-        header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
-        header('Pragma: no-cache');
-        header('Expires: 0');
+        header('Cache-Control: public, max-age=60, s-maxage=120');
 
         try {
             $orgModel = new \App\Models\Organization();
-            $organizations = $orgModel->getAllWithDetails();
+            $organizations = $orgModel->getDirectoryListings();
 
             echo json_encode([
                 'success' => true,

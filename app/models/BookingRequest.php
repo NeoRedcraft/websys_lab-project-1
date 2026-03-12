@@ -207,17 +207,16 @@ class BookingRequest
                 return true;
             }
 
-            if ($allowAnyStatus) {
-                $this->supabase->adminRequest(
-                    'DELETE',
-                    '/rest/v1/booking_requests?id=eq.' . rawurlencode((string) $requestId),
-                    [],
-                    ['Prefer' => 'return=representation']
-                );
-                return true;
-            }
+            // Fallback to admin delete if RLS blocks token-scoped delete.
+            // Callers must enforce authorization before invoking this method.
+            $this->supabase->adminRequest(
+                'DELETE',
+                '/rest/v1/booking_requests?id=eq.' . rawurlencode((string) $requestId),
+                [],
+                ['Prefer' => 'return=representation']
+            );
 
-            return false;
+            return true;
         } catch (\Exception $e) {
             error_log('Error deleting booking: ' . $e->getMessage());
             return false;

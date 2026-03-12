@@ -6,7 +6,10 @@ ob_start();
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
     <div class="mb-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 class="text-4xl font-bold">Admin Dashboard</h1>
-        <a href="/admin/organizations" class="inline-flex items-center justify-center bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">Manage Organizations</a>
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <a href="/admin/users" class="inline-flex items-center justify-center bg-white border border-red-600 text-red-600 px-4 py-2 rounded hover:bg-red-50">User Management</a>
+            <a href="/admin/organizations" class="inline-flex items-center justify-center bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">Manage Organizations</a>
+        </div>
     </div>
 
     <?php if (!empty($success)): ?>
@@ -67,7 +70,10 @@ ob_start();
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div class="lg:col-span-2 bg-white rounded-lg shadow-md p-6">
-            <h2 class="text-2xl font-bold mb-4">Recent Audit Logs</h2>
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-2xl font-bold">Recent Audit Logs</h2>
+                <a href="/admin/audit-logs" class="text-red-600 hover:underline text-sm">View Full Audit Logs</a>
+            </div>
             <?php if (empty($logs)): ?>
                 <p class="text-gray-600">No audit logs available.</p>
             <?php else: ?>

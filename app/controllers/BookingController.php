@@ -630,9 +630,10 @@ class BookingController
     public function apiGetDirectoryOrganizations($params = [])
     {
         header('Content-Type: application/json');
+        header('Cache-Control: public, max-age=60, s-maxage=120');
         
         try {
-            $organizations = $this->organizationModel->getAllWithDetails();
+            $organizations = $this->organizationModel->getDirectoryListings();
             
             // Return JSON response
             echo json_encode([

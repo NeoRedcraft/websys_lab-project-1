@@ -69,6 +69,7 @@ ob_start();
                                 <?php endif; ?>
                             </td>
                             <td class="p-4">
+                                <?php $isCurrentUser = !empty($currentUserId) && ((string) $currentUserId === (string) ($u['id'] ?? '')); ?>
                                 <button onclick="openRoleModal('<?= htmlspecialchars($u['id']) ?>',
                                                                '<?= htmlspecialchars($u['full_name'] ?? '') ?>',
                                                                '<?= (int)($u['role_id'] ?? 0) ?>',
@@ -76,6 +77,26 @@ ob_start();
                                         class="text-red-600 hover:underline text-sm">
                                     Change Role
                                 </button>
+
+                                <?php if ($isCurrentUser): ?>
+                                    <button type="button"
+                                            class="ml-3 text-gray-300 text-sm cursor-not-allowed"
+                                            disabled
+                                            title="You cannot delete your own account">
+                                        Delete User
+                                    </button>
+                                <?php else: ?>
+                                    <form method="POST"
+                                          action="/admin/users/delete"
+                                          class="inline"
+                                          onsubmit="return confirm('Delete this user permanently? This action cannot be undone.');">
+                                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? '') ?>">
+                                        <input type="hidden" name="user_id" value="<?= htmlspecialchars($u['id']) ?>">
+                                        <button type="submit" class="ml-3 text-red-700 hover:underline text-sm">
+                                            Delete User
+                                        </button>
+                                    </form>
+                                <?php endif; ?>
                             </td>
                         </tr>
                     <?php endforeach; ?>

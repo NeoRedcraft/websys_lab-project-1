@@ -63,6 +63,20 @@ ob_start();
             <p class="text-sm text-amber-800">
                 There are pending admin profile changes. Saving this form will apply your values and mark the profile as resolved.
             </p>
+            <div class="mt-3 flex flex-wrap gap-2">
+                <form method="post" action="/org-admin/profile/accept-admin-changes">
+                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken ?? ''); ?>">
+                    <button type="submit" class="inline-flex items-center rounded bg-green-600 px-3 py-2 text-sm text-white hover:bg-green-700">
+                        Accept Admin Changes
+                    </button>
+                </form>
+                <form method="post" action="/org-admin/profile/decline-admin-changes" onsubmit="return confirm('Decline and revert to the previous profile details?');">
+                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken ?? ''); ?>">
+                    <button type="submit" class="inline-flex items-center rounded bg-red-600 px-3 py-2 text-sm text-white hover:bg-red-700">
+                        Decline and Revert
+                    </button>
+                </form>
+            </div>
         </div>
     <?php endif; ?>
 

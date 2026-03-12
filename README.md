@@ -45,5 +45,5 @@
 
 4. Run the server:
    ```bash
-   php -S localhost:8000
+   php -S localhost:8000 -t public
    ```              

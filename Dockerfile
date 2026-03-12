@@ -21,6 +21,9 @@ RUN echo 'ServerName localhost' > /etc/apache2/conf-available/servername.conf \
 # Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
+# Override PHP upload limits so app-level validation handles large files gracefully.
+COPY docker/php/uploads.ini /usr/local/etc/php/conf.d/uploads.ini
+
 # Set working directory
 WORKDIR /var/www/html
 
@@ -37,12 +40,25 @@ COPY . .
 RUN chown -R www-data:www-data /var/www/html \
     && chmod -R 755 /var/www/html
 
-# Configure Apache to use index.php as the entry point
-RUN echo '<Directory /var/www/html>\n\
+# Configure Apache to serve only /public while keeping existing asset URLs.
+RUN echo 'DocumentRoot /var/www/html/public\n\
+<Directory /var/www/html/public>\n\
     Options Indexes FollowSymLinks\n\
     AllowOverride All\n\
     Require all granted\n\
     FallbackResource /index.php\n\
+</Directory>\n\
+Alias /styles /var/www/html/styles\n\
+<Directory /var/www/html/styles>\n\
+    Require all granted\n\
+</Directory>\n\
+Alias /js /var/www/html/js\n\
+<Directory /var/www/html/js>\n\
+    Require all granted\n\
+</Directory>\n\
+Alias /uploads /var/www/html/uploads\n\
+<Directory /var/www/html/uploads>\n\
+    Require all granted\n\
 </Directory>' > /etc/apache2/conf-available/cardinalstage.conf \
     && a2enconf cardinalstage
 

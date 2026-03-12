@@ -60,7 +60,10 @@ class Gatekeeper
         $roleName = $this->getRoleName($userRole);
         
         if (!$roleName || $roleName !== $requiredRole) {
-            self::terminateSession('Unauthorized access attempt');
+            http_response_code(403);
+            if (!headers_sent()) {
+                header('Location: /dashboard?error=unauthorized');
+            }
             exit;
         }
 
@@ -79,7 +82,10 @@ class Gatekeeper
         $roleName = $this->getRoleName($userRole);
         
         if (!$roleName || !in_array($roleName, $allowedRoles)) {
-            self::terminateSession('Unauthorized access');
+            http_response_code(403);
+            if (!headers_sent()) {
+                header('Location: /dashboard?error=unauthorized');
+            }
             exit;
         }
 

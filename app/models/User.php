@@ -298,6 +298,25 @@ class User
     }
 
     /**
+     * Admin utility: permanently delete auth user (users_extended cascades).
+     */
+    public function adminDeleteUser($userId)
+    {
+        $userId = trim((string) $userId);
+        if ($userId === '') {
+            return false;
+        }
+
+        try {
+            $response = $this->supabase->deleteUser($userId);
+            return !empty($response['success']);
+        } catch (\Exception $e) {
+            error_log('Error deleting admin user: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
      * Resolve a role ID by role name (e.g., organizer, org_admin).
      */
     public function getRoleIdByName($roleName)

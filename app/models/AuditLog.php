@@ -19,18 +19,34 @@ class AuditLog
     public function log($userId, $action, $entityType, $entityId = null, $oldValues = null, $newValues = null, $accessToken = null)
     {
         try {
+            $normalizedEntityId = $this->normalizeEntityId($entityId);
+            $oldPayload = $this->normalizePayload($oldValues);
+            $newPayload = $this->normalizePayload($newValues);
+
+            // audit_logs.entity_id is BIGINT. Keep string/UUID references in payload metadata.
+            if ($normalizedEntityId === null && $entityId !== null && (string) $entityId !== '') {
+                if (!is_array($newPayload)) {
+                    $newPayload = [];
+                }
+                $newPayload['_entity_ref'] = (string) $entityId;
+            }
+
             $data = [
                 'user_id' => $userId,
                 'action' => $action,
                 'entity_type' => $entityType,
-                'entity_id' => $entityId,
-                'old_values' => $oldValues ? json_encode($oldValues) : null,
-                'new_values' => $newValues ? json_encode($newValues) : null,
+                'entity_id' => $normalizedEntityId,
+                'old_values' => $oldPayload,
+                'new_values' => $newPayload,
                 'ip_address' => $_SERVER['REMOTE_ADDR'] ?? null
             ];
 
-            $response = $this->supabase->insert('audit_logs', $data, $accessToken);
-            return $response['success'];
+            $this->supabase->adminRequest('POST', '/rest/v1/audit_logs', $data, [
+                'Prefer' => 'return=representation',
+                'Content-Type' => 'application/json',
+            ]);
+
+            return true;
         } catch (\Exception $e) {
             error_log('Error logging audit: ' . $e->getMessage());
             return false;
@@ -43,9 +59,11 @@ class AuditLog
     public function getAll($limit = 100, $offset = 0)
     {
         try {
-            $url = $this->supabase->getUrl() . "/rest/v1/audit_logs?order=created_at.desc&limit={$limit}&offset={$offset}";
-            
-            $response = $this->supabase->makeRequest('GET', $url);
+            $safeLimit = max(1, (int) $limit);
+            $safeOffset = max(0, (int) $offset);
+            $endpoint = '/rest/v1/audit_logs?order=created_at.desc&limit=' . $safeLimit . '&offset=' . $safeOffset;
+
+            $response = $this->supabase->adminRequest('GET', $endpoint, [], ['Prefer' => 'return=representation']);
             return is_array($response) ? $response : [];
         } catch (\Exception $e) {
             error_log('Error fetching audit logs: ' . $e->getMessage());
@@ -59,9 +77,11 @@ class AuditLog
     public function getByUser($userId, $limit = 100)
     {
         try {
-            $url = $this->supabase->getUrl() . "/rest/v1/audit_logs?user_id=eq.{$userId}&order=created_at.desc&limit={$limit}";
-            
-            $response = $this->supabase->makeRequest('GET', $url);
+            $safeLimit = max(1, (int) $limit);
+            $endpoint = '/rest/v1/audit_logs?user_id=eq.' . rawurlencode((string) $userId)
+                . '&order=created_at.desc&limit=' . $safeLimit;
+
+            $response = $this->supabase->adminRequest('GET', $endpoint, [], ['Prefer' => 'return=representation']);
             return is_array($response) ? $response : [];
         } catch (\Exception $e) {
             error_log('Error fetching user audit logs: ' . $e->getMessage());
@@ -75,9 +95,13 @@ class AuditLog
     public function getByEntity($entityType, $entityId)
     {
         try {
-            $url = $this->supabase->getUrl() . "/rest/v1/audit_logs?entity_type=eq.{$entityType}&entity_id=eq.{$entityId}&order=created_at.desc";
-            
-            $response = $this->supabase->makeRequest('GET', $url);
+            $normalizedEntityId = $this->normalizeEntityId($entityId);
+            $endpoint = '/rest/v1/audit_logs?entity_type=eq.' . rawurlencode((string) $entityType) . '&order=created_at.desc';
+            if ($normalizedEntityId !== null) {
+                $endpoint .= '&entity_id=eq.' . $normalizedEntityId;
+            }
+
+            $response = $this->supabase->adminRequest('GET', $endpoint, [], ['Prefer' => 'return=representation']);
             return is_array($response) ? $response : [];
         } catch (\Exception $e) {
             error_log('Error fetching entity audit logs: ' . $e->getMessage());
@@ -112,8 +136,43 @@ class AuditLog
     /**
      * Log authentication action
      */
-    public function logAuth($userId, $action)
+    public function logAuth($userId, $action, $entityId = null, $newValues = null)
     {
-        return $this->log($userId, $action, 'authentication', null);
+        return $this->log($userId, $action, 'authentication', $entityId, null, $newValues);
+    }
+
+    private function normalizeEntityId($entityId)
+    {
+        if ($entityId === null) {
+            return null;
+        }
+
+        $value = trim((string) $entityId);
+        if ($value === '') {
+            return null;
+        }
+
+        if (!preg_match('/^-?\d+$/', $value)) {
+            return null;
+        }
+
+        return (int) $value;
+    }
+
+    private function normalizePayload($value)
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        if (is_array($value)) {
+            return $value;
+        }
+
+        if (is_object($value)) {
+            return (array) $value;
+        }
+
+        return ['value' => (string) $value];
     }
 }
