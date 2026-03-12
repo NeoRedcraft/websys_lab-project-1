@@ -162,24 +162,12 @@ class AuthController
 
             $result = $this->getSupabase()->signUp($email, $password, $metadata);
 
-            if ($result['success']) {
-                $data = $result['data'];
-                $userId = $data['user']['id'];
-
-                // Create the profile in your public table
-                $this->userModel->create(
-                    $userId, 
-                    $email, 
-                    $name, 
-                    3,    // Default 'organizer' role_id
-                    null  // Default org_id
-                );
-            }
-            
             if (!$result['success']) {
                 $this->auditLog->logAuth(null, 'signup_failed', 'auth_error', [
                     'email' => $email,
-                    'error' => $result['error']['message'] ?? 'Unknown error',
+                    'error' => is_array($result['error'] ?? null)
+                        ? ($result['error']['message'] ?? 'Unknown error')
+                        : ($result['error'] ?? 'Unknown error'),
                 ]);
                 
                 return view('auth/signup', [
@@ -190,6 +178,17 @@ class AuthController
 
             $data = $result['data'];
             $userId = $data['user']['id'] ?? null;
+
+            if (!$userId) {
+                $this->auditLog->logAuth(null, 'signup_failed', 'missing_user_id', [
+                    'email' => $email,
+                ]);
+
+                return view('auth/signup', [
+                    'error' => 'Sign up failed. Missing user identifier from authentication service.',
+                    'csrfToken' => csrf_token(),
+                ]);
+            }
 
             // Create user in users_extended table with organizer role (default)
             $createUserResult = $this->userModel->create(
@@ -416,5 +415,46 @@ class AuthController
         }
 
         redirect('/account?success=' . urlencode('Password changed successfully.'));
+    }
+
+    public function deleteAccount($params = [])
+    {
+        require_auth();
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            redirect('/account');
+        }
+
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!verify_csrf($csrfToken)) {
+            redirect('/account?error=' . urlencode('Invalid request token. Please try again.'));
+        }
+
+        $user = get_user();
+        $userId = trim((string) ($user['id'] ?? ''));
+
+        if ($userId === '') {
+            redirect('/signin?error=' . urlencode('Invalid session. Please sign in again.'));
+        }
+
+        $deleted = $this->userModel->adminDeleteUser($userId);
+
+        if (!$deleted) {
+            $this->auditLog->logAuth($userId, 'account_delete_failed', 'delete_error', [
+                'email' => $user['email'] ?? null,
+                'ip' => $_SERVER['REMOTE_ADDR'] ?? null,
+            ]);
+            redirect('/account?error=' . urlencode('Failed to delete account. Please contact support.'));
+        }
+
+        $this->auditLog->logAuth($userId, 'account_deleted', 'self_service', [
+            'email' => $user['email'] ?? null,
+            'ip' => $_SERVER['REMOTE_ADDR'] ?? null,
+        ]);
+
+        $this->getSupabase()->signOut();
+        session_flush();
+
+        redirect('/?success=' . urlencode('Your account has been deleted.'));
     }
 }
