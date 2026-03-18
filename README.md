@@ -7,7 +7,7 @@
 * Sylar Zvi Villacruz - SYZVAL
 
 # CardinalStage
-The Mapua COO currently relies on manual methods for handling performance bookings. This includes emails, social media messages, and physical request forms. This decentralized process results in inefficient communication, difficulty in tracking the requests, and possible schedule conflicts. Additionally, organization leaders lack a structured system to manage their organization profiles and incoming booking requests.	
+The Mapua COO currently relies on manual methods for handling performance bookings. This includes emails, social media messages, and physical request forms. This decentralized process results in inefficient communication, difficulty in tracking the requests, and possible schedule conflicts. Organization leaders lack a structured system to manage their organization profiles and incoming booking requests.	
 Introducing CardinalStage, this system will serve as a unified, web-based portal that centralizes organization profiles and performance bookings, streamlines coordination between event organizers and performing groups, and provides a role-based system for managing and tracking partnership requests.
 
 ## 📄 File Description:
