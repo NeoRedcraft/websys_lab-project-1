@@ -6,44 +6,47 @@
 * Earth Luis Diño - GrudgeTale
 * Sylar Zvi Villacruz - SYZVAL
 
-## HOW TO RUN
+# CardinalStage
+The Mapua COO currently relies on manual methods for handling performance bookings. This includes emails, social media messages, and physical request forms. This decentralized process results in inefficient communication, difficulty in tracking the requests, and possible schedule conflicts. Additionally, organization leaders lack a structured system to manage their organization profiles and incoming booking requests.	
+Introducing CardinalStage, this system will serve as a unified, web-based portal that centralizes organization profiles and performance bookings, streamlines coordination between event organizers and performing groups, and provides a role-based system for managing and tracking partnership requests.
 
-### Option 1: Using Docker (Recommended)
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/NeoRedcraft/websys_lab-project-1.git
-   cd websys_lab-project-1
-   ```
+## 📄 File Description:
+<pre>
+📁 websys_lab-project-1/
+│
+├── 📁 app/                         # Core application logic (PHP backend)
+│   └── ...                         
+├── 📁 database/                    # Supabase Database
+│   └── ...                         
+├── 📁 docker/
+│   └── 📁 php/                     # PHP Docker configuration
+│       └── ...                     
+├── 📁 guidelines/                  # Project documentation or dev guidelines
+│   └── ...                         
+├── 📁 js/                          # Client-side JavaScript files
+│   └── ...                         
+├── 📁 public/                      # Publicly accessible web root
+│   └── ...                         
+├── 📁 scripts/                     # Utility and setup scripts
+│   └── ...                         
+├── 📁 styles/                      # CSS stylesheets
+│   └── ...                         
+├── 📁 uploads/                     # User-uploaded file storage
+│   └── ...                        
+├── 📄 index.php                    # Application entry point
+├── 📄 .htaccess                    # Apache URL rewriting / routing rules
+├── 📄 .env.example                 # Environment variable template(Supabase API, Render API)                             
+├── 📄 .gitignore                   # Files excluded from version control
+├── 📄 .dockerignore                # Files excluded from Docker build context
+├── 📄 Dockerfile                   # Docker image definition for PHP app
+├── 📄 docker-compose.yml           # Multi-container Docker orchestration
+├── 📄 composer.json                # PHP dependency definitions (Composer)
+├── 📄 composer.lock                # Locked dependency versions
+├── 📄 composer.phar                # Bundled Composer binary
+</pre>
 
-2. Create `.env` file from example:
-   ```bash
-   cp .env.example .env
-   ```
+## Web Deployment:
+Used the Render online service for deployment with the free tier available, the inactive website will have to wait few minutes to fully load the webiste.
 
-3. Update `.env` with your Supabase credentials
-
-4. Run with Docker Compose:
-   ```bash
-   docker-compose up
-   ```
-
-5. Access the application at `http://localhost:8000`
-
-### Option 2: Using PHP Built-in Server
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/NeoRedcraft/websys_lab-project-1.git
-   cd websys_lab-project-1
-   ```
-
-2. Install dependencies:
-   ```bash
-   composer install
-   ```
-
-3. Create `.env` file from example and update with your credentials
-
-4. Run the server:
-   ```bash
-   php -S localhost:8000 -t public
-   ```              
+🔗 **Live Demo:**  
+https://cardinalstage.onrender.com/
